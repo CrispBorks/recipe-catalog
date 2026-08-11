@@ -23,6 +23,8 @@ const els = {
   stepRows: document.getElementById("step-rows"),
   addIngredient: document.getElementById("add-ingredient"),
   addStep: document.getElementById("add-step"),
+  noteRows: document.getElementById("note-rows"),
+  addNote: document.getElementById("add-note"),
   resetForm: document.getElementById("reset-form"),
   formError: document.getElementById("form-error"),
   outputPanel: document.getElementById("output-panel"),
@@ -122,6 +124,21 @@ function addStepRow(value) {
   els.stepRows.appendChild(row);
 }
 
+function addNoteRow(value) {
+  const row = document.createElement("div");
+  row.className = "repeat-row";
+  row.innerHTML = `
+    <div class="field step-field">
+      <label class="sr-only">Note</label>
+      <textarea class="note-text" placeholder="https://youtu.be/... or a tip, substitution, source, etc." rows="2"></textarea>
+    </div>
+    <button type="button" class="remove-row-btn" aria-label="Remove note">×</button>
+  `;
+  if (value) row.querySelector(".note-text").value = value;
+  row.querySelector(".remove-row-btn").addEventListener("click", () => row.remove());
+  els.noteRows.appendChild(row);
+}
+
 function renumberSteps() {
   [...els.stepRows.children].forEach((row, i) => {
     row.querySelector(".step-number").textContent = i + 1;
@@ -159,6 +176,7 @@ function bindEvents() {
 
   els.addIngredient.addEventListener("click", () => addIngredientRow());
   els.addStep.addEventListener("click", () => addStepRow());
+  els.addNote.addEventListener("click", () => addNoteRow());
 
   els.resetForm.addEventListener("click", () => {
     if (!confirm("Clear everything in this form?")) return;
@@ -167,6 +185,7 @@ function bindEvents() {
     idTouchedManually = false;
     els.ingredientRows.innerHTML = "";
     els.stepRows.innerHTML = "";
+    els.noteRows.innerHTML = "";
     addIngredientRow();
     addIngredientRow();
     addStepRow();
@@ -221,17 +240,25 @@ function handleGenerate() {
 
   const title = els.title.value.trim();
   const id = els.id.value.trim();
-  const time = Number(els.time.value);
-  const servings = Number(els.servings.value);
+  const timeRaw = els.time.value.trim();
+  const servingsRaw = els.servings.value.trim();
 
   if (!title) return showError("Give the recipe a title.");
   if (!id) return showError("The ID field is empty — retype the title or fill it in manually.");
-  if (!time || time <= 0) return showError("Enter a time in minutes.");
-  if (!servings || servings <= 0) return showError("Enter a number of servings.");
 
   const duplicate = state.existingRecipes.find((r) => r.id === id);
   if (duplicate) {
     return showError(`A recipe with the ID "${id}" already exists ("${duplicate.title}"). Change the title or edit the ID field.`);
+  }
+
+  let time, servings;
+  if (timeRaw) {
+    time = Number(timeRaw);
+    if (!Number.isFinite(time) || time <= 0) return showError("Time, if given, needs to be a positive number of minutes — or leave it blank.");
+  }
+  if (servingsRaw) {
+    servings = Number(servingsRaw);
+    if (!Number.isFinite(servings) || servings <= 0) return showError("Servings, if given, needs to be a positive number — or leave it blank.");
   }
 
   const ingredientRows = [...els.ingredientRows.children];
@@ -246,23 +273,24 @@ function handleGenerate() {
     })
     .filter(Boolean);
 
-  if (ingredients.length === 0) return showError("Add at least one ingredient.");
-
   const stepRows = [...els.stepRows.children];
   const steps = stepRows
     .map((row) => row.querySelector(".step-text").value.trim())
     .filter(Boolean);
 
-  if (steps.length === 0) return showError("Add at least one step.");
+  const notes = [...els.noteRows.children]
+    .map((row) => row.querySelector(".note-text").value.trim())
+    .filter(Boolean);
 
   latestRecipe = {
     id,
     title,
-    tags: [...state.tags],
-    time,
-    servings,
-    ingredients,
-    steps,
+    ...(state.tags.size ? { tags: [...state.tags] } : {}),
+    ...(time !== undefined ? { time } : {}),
+    ...(servings !== undefined ? { servings } : {}),
+    ...(ingredients.length ? { ingredients } : {}),
+    ...(steps.length ? { steps } : {}),
+    ...(notes.length ? { notes } : {}),
   };
 
   els.outputJson.textContent = JSON.stringify(latestRecipe, null, 2);

@@ -29,6 +29,10 @@
     --ink-soft: #b9b0a0;
     --rule: #3a352c;
     --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 6px 20px -10px rgba(0, 0, 0, 0.6);
+    /* --plum and --sage stay dark — they're used as solid button/chip fills
+       with white text on top, which still reads fine. But used as plain text
+       or borders against a dark background, that same dark purple/green is
+       nearly invisible, so text-only spots use these brighter accents instead. */
     --plum-dark: #7a4f82;
     --plum-accent: #cc9edb;
     --sage-accent: #8fc194;
@@ -125,8 +129,8 @@ nav.tabs button {
 }
 
 nav.tabs button[aria-current="true"] {
-  background: var(--plum-accent);
-  border-color: var(--plum-accent);
+  background: var(--plum);
+  border-color: var(--plum);
   color: #fff;
 }
 
@@ -182,8 +186,8 @@ nav.tabs .count {
 }
 
 .chip[aria-pressed="true"] {
-  background: var(--sage-accent);
-  border-color: var(--sage-accent);
+  background: var(--sage);
+  border-color: var(--sage);
   color: #fff;
 }
 
@@ -377,6 +381,41 @@ dialog#recipe-detail::backdrop {
   padding-left: 4px;
 }
 
+.notes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.notes-list li {
+  padding: 10px 0;
+  border-bottom: 1px dotted var(--rule);
+}
+
+.notes-list li:last-child { border-bottom: none; }
+
+.notes-list a { color: var(--plum-accent); text-decoration: underline; word-break: break-word; }
+
+.note-embed {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+  margin-top: 10px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.note-embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
 .detail-actions {
   display: flex;
   gap: 10px;
@@ -393,8 +432,8 @@ dialog#recipe-detail::backdrop {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   border-radius: var(--radius);
-  border: 1px solid var(--plum-accent);
-  background: var(--plum-accent);
+  border: 1px solid var(--plum);
+  background: var(--plum);
   color: #fff;
   padding: 10px 16px;
   cursor: pointer;
@@ -642,8 +681,8 @@ footer.site-footer {
 }
 
 .tag-chip.selected {
-  background: var(--plum-accent);
-  border-color: var(--plum-accent);
+  background: var(--plum);
+  border-color: var(--plum);
   color: #fff;
 }
 
