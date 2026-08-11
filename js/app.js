@@ -151,7 +151,10 @@ function openDetail(recipe) {
 
 function loadList() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    const list = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    // Older saved lists (pre-grouping) won't have a `recipe` field yet —
+    // give those items a fallback section so they still render/export fine.
+    return list.map((item) => ({ ...item, recipe: item.recipe || "Other" }));
   } catch {
     return [];
   }
@@ -161,11 +164,13 @@ function saveList() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.list));
 }
 
-function addIngredientsToList(ingredients) {
+function addIngredientsToList(ingredients, recipeTitle) {
+  const recipe = recipeTitle || "Other";
   ingredients.forEach((ing) => {
-    const key = `${ing.name.toLowerCase()}|${(ing.unit || "").toLowerCase()}`;
+    const key = `${recipe.toLowerCase()}|${ing.name.toLowerCase()}|${(ing.unit || "").toLowerCase()}`;
     const existing = state.list.find(
-      (item) => `${item.name.toLowerCase()}|${(item.unit || "").toLowerCase()}` === key
+      (item) =>
+        `${item.recipe.toLowerCase()}|${item.name.toLowerCase()}|${(item.unit || "").toLowerCase()}` === key
     );
     if (existing && typeof existing.qty === "number" && typeof ing.qty === "number") {
       existing.qty += ing.qty;
@@ -177,11 +182,24 @@ function addIngredientsToList(ingredients) {
         qty: ing.qty,
         unit: ing.unit,
         checked: false,
+        recipe,
       });
     }
   });
   saveList();
   renderShoppingList();
+}
+
+// Groups the flat list into ordered sections keyed by recipe name, preserving
+// the order in which each recipe was first added to the list.
+function groupByRecipe() {
+  const groups = new Map();
+  state.list.forEach((item) => {
+    const key = item.recipe || "Other";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  });
+  return groups;
 }
 
 function renderShoppingList() {
@@ -195,33 +213,59 @@ function renderShoppingList() {
   els.clearListBtn.disabled = disable;
   els.clearCheckedBtn.disabled = disable;
 
-  state.list.forEach((item) => {
-    const li = document.createElement("li");
-    li.className = item.checked ? "checked" : "";
-    li.innerHTML = `
-      <input type="checkbox" ${item.checked ? "checked" : ""} aria-label="Mark ${escapeHtml(item.name)} purchased" />
-      <span class="qty">${formatQty(item.qty)} ${item.unit || ""}</span>
-      <span class="item-name">${escapeHtml(item.name)}</span>
-      <button class="remove-item" aria-label="Remove ${escapeHtml(item.name)}">×</button>
-    `;
-    li.querySelector('input[type="checkbox"]').addEventListener("change", (e) => {
-      item.checked = e.target.checked;
-      saveList();
-      renderShoppingList();
+  const groups = groupByRecipe();
+
+  groups.forEach((items, recipeTitle) => {
+    const header = document.createElement("li");
+    header.className = "list-section-header";
+    header.textContent = recipeTitle;
+    els.shoppingItems.appendChild(header);
+
+    items.forEach((item) => {
+      const li = document.createElement("li");
+      li.className = item.checked ? "checked" : "";
+      li.innerHTML = `
+        <input type="checkbox" ${item.checked ? "checked" : ""} aria-label="Mark ${escapeHtml(item.name)} purchased" />
+        <span class="item-name">${escapeHtml(item.name)}</span>
+        <button class="remove-item" aria-label="Remove ${escapeHtml(item.name)}">×</button>
+      `;
+      li.querySelector('input[type="checkbox"]').addEventListener("change", (e) => {
+        item.checked = e.target.checked;
+        saveList();
+        renderShoppingList();
+      });
+      li.querySelector(".remove-item").addEventListener("click", () => {
+        state.list = state.list.filter((i) => i.id !== item.id);
+        saveList();
+        renderShoppingList();
+      });
+      els.shoppingItems.appendChild(li);
     });
-    li.querySelector(".remove-item").addEventListener("click", () => {
-      state.list = state.list.filter((i) => i.id !== item.id);
-      saveList();
-      renderShoppingList();
-    });
-    els.shoppingItems.appendChild(li);
   });
 }
 
+// Produces one block per recipe, e.g.:
+//   Chicken Alfredo:
+//   - pasta
+//   - chicken breast
+//
+//   Beef Tacos:
+//   - ground beef
+// The "Recipe:" header + "- " item prefix are intentional — they're what the
+// companion Shortcut parses to create one reminder per line, filed under a
+// list named after the recipe, instead of dumping the whole list into a
+// single Reminder. Checked-off items are already purchased, so they're left
+// out of the export — no point re-adding something you've already got.
 function listAsText() {
-  return state.list
-    .map((item) => `${formatQty(item.qty)} ${item.unit || ""} ${item.name}`.replace(/\s+/g, " ").trim())
-    .join("\n");
+  const groups = groupByRecipe();
+  const blocks = [];
+  groups.forEach((items, recipeTitle) => {
+    const unchecked = items.filter((item) => !item.checked);
+    if (unchecked.length === 0) return;
+    const lines = unchecked.map((item) => `- ${item.name}`);
+    blocks.push(`${recipeTitle}:\n${lines.join("\n")}`);
+  });
+  return blocks.join("\n\n");
 }
 
 /* ---------------- Events ---------------- */
@@ -241,7 +285,7 @@ function bindEvents() {
   });
 
   els.addAllBtn.addEventListener("click", () => {
-    addIngredientsToList(activeRecipe.ingredients);
+    addIngredientsToList(activeRecipe.ingredients, activeRecipe.title);
     showToast(`Added all ingredients from ${activeRecipe.title}`);
     els.dialog.close();
   });
@@ -254,7 +298,7 @@ function bindEvents() {
       showToast("Select at least one ingredient first");
       return;
     }
-    addIngredientsToList(chosen);
+    addIngredientsToList(chosen, activeRecipe.title);
     showToast(`Added ${chosen.length} ingredient${chosen.length === 1 ? "" : "s"} to your list`);
     els.dialog.close();
   });

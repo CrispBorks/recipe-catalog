@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Add a recipe — Card Catalog</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="masthead-row">
+      <h1><span class="drawer-index">Drawer No. 01</span>Card Catalog</h1>
+      <a class="builder-nav-link" href="index.html">← Back to recipes</a>
+    </div>
+  </header>
+
+  <section id="view-builder">
+    <form id="recipe-form">
+      <div class="builder-panel">
+        <h2>Recipe details</h2>
+        <p class="hint">This page doesn't save anything by itself — it just builds the JSON block. You'll copy the result into <code>data/recipes.json</code> and commit it.</p>
+
+        <div class="field-row">
+          <div class="field" style="flex: 2;">
+            <label for="f-title">Title</label>
+            <input type="text" id="f-title" placeholder="Lemon Garlic Roast Chicken" required />
+          </div>
+          <div class="field">
+            <label for="f-time">Time (minutes)</label>
+            <input type="number" id="f-time" min="1" placeholder="45" required />
+          </div>
+          <div class="field">
+            <label for="f-servings">Servings</label>
+            <input type="number" id="f-servings" min="1" placeholder="4" required />
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="f-id">ID (slug)</label>
+            <input type="text" id="f-id" placeholder="lemon-garlic-roast-chicken" required />
+            <span class="field-hint">Auto-filled from the title — used internally, doesn't need to be touched.</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Tags</label>
+          <div class="tag-picker" id="tag-picker"></div>
+          <span class="field-hint">Tap to toggle. Type a new one below and press Enter to add it to the list.</span>
+          <input type="text" id="f-new-tag" placeholder="Add a new tag…" style="margin-top: 8px; max-width: 220px;" />
+        </div>
+      </div>
+
+      <div class="builder-panel">
+        <h2>Ingredients</h2>
+        <p class="hint">Leave "qty" blank for things like "salt to taste." Unit is optional too (e.g. a plain "2 lemons" needs no unit).</p>
+        <div id="ingredient-rows"></div>
+        <button type="button" class="add-row-btn" id="add-ingredient">+ Add ingredient</button>
+      </div>
+
+      <div class="builder-panel">
+        <h2>Steps</h2>
+        <p class="hint">One step per box, in order.</p>
+        <div id="step-rows"></div>
+        <button type="button" class="add-row-btn" id="add-step">+ Add step</button>
+      </div>
+
+      <div class="builder-panel">
+        <div class="builder-actions">
+          <button type="submit" class="btn">Generate recipe JSON</button>
+          <button type="button" class="btn secondary" id="reset-form">Clear form</button>
+        </div>
+        <p class="builder-error" id="form-error" hidden></p>
+      </div>
+    </form>
+
+    <div class="output-panel" id="output-panel" hidden>
+      <h2>Add this to <code>data/recipes.json</code></h2>
+      <p class="hint" id="output-hint"></p>
+      <pre id="output-json"></pre>
+      <div class="builder-actions">
+        <button type="button" class="btn" id="copy-json">Copy JSON block</button>
+        <button type="button" class="btn secondary" id="download-full">Download full updated recipes.json</button>
+      </div>
+      <p class="hint" style="margin-top: 14px;">
+        The download gives you the entire file with this recipe already added — just drop it into
+        <code>data/recipes.json</code>, replacing the old one, then commit &amp; push. "Copy JSON block" instead gives
+        you just the new recipe object to paste in by hand if you'd rather do it that way.
+      </p>
+    </div>
+  </section>
+
+  <footer class="site-footer">Card Catalog · recipe builder · nothing here is saved automatically</footer>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="js/add-recipe.js"></script>
+</body>
+</html>
