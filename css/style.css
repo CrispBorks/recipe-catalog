@@ -208,6 +208,7 @@ nav.tabs .count {
 }
 
 .recipe-card {
+  text-decoration: none;
   position: relative;
   background: var(--paper-raised);
   border: 1px solid var(--rule);
@@ -274,27 +275,22 @@ nav.tabs .count {
 }
 
 /* ---------------------------------------------------
-   Recipe detail (dialog)
+   Recipe detail (full page)
 --------------------------------------------------- */
-dialog#recipe-detail {
-  border: none;
+.detail-page {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.detail-page .detail-inner {
   border-radius: 6px;
-  padding: 0;
-  width: min(600px, 92vw);
-  max-height: 86vh;
   color: var(--ink);
   background: var(--paper-raised);
   box-shadow: var(--shadow);
 }
 
-dialog#recipe-detail::backdrop {
-  background: rgba(20, 17, 13, 0.5);
-}
-
 .detail-inner {
   padding: 26px 26px 24px;
-  overflow-y: auto;
-  max-height: 86vh;
 }
 
 .detail-header {
@@ -309,19 +305,6 @@ dialog#recipe-detail::backdrop {
   font-family: var(--serif);
   font-size: 26px;
   margin: 0;
-}
-
-.close-btn {
-  background: none;
-  border: 1px solid var(--rule);
-  border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  color: var(--ink-soft);
-  flex: none;
 }
 
 .detail-meta {

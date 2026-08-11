@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Recipe — Card Catalog</title>
+<meta name="description" content="Recipe detail from the Card Catalog." />
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="masthead-row">
+      <h1><span class="drawer-index">Drawer No. 01</span>Card Catalog</h1>
+      <nav class="tabs" aria-label="Views">
+        <a class="builder-nav-link" href="index.html" style="align-self: center;">&larr; Back to recipes</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="detail-page">
+    <div class="detail-inner">
+      <div class="detail-header">
+        <h2 id="detail-title"></h2>
+      </div>
+      <p class="detail-meta" id="detail-meta"></p>
+
+      <div class="detail-section" id="detail-ingredients-section">
+        <h3>Ingredients</h3>
+        <ul class="ingredient-list" id="detail-ingredients"></ul>
+      </div>
+
+      <div class="detail-section" id="detail-steps-section">
+        <h3>Method</h3>
+        <ol class="step-list" id="detail-steps"></ol>
+      </div>
+
+      <div class="detail-section" id="detail-notes-section" hidden>
+        <h3>Notes</h3>
+        <ul class="notes-list" id="detail-notes"></ul>
+      </div>
+
+      <div class="detail-actions" id="detail-actions">
+        <button class="btn" id="add-selected-btn">Add selected to list</button>
+        <button class="btn secondary" id="add-all-btn">Add all ingredients</button>
+      </div>
+    </div>
+    <div class="empty-state" id="detail-missing" hidden>
+      That card isn't in the drawer. <a href="index.html">Back to the catalog.</a>
+    </div>
+  </section>
+
+  <footer class="site-footer">With ❤️ from <a href="https://atharva-bhagwat.github.io/" target="_blank" rel="noopener noreferrer">Atharva</a> and <a href="https://www.yashraut.com/" target="_blank" rel="noopener noreferrer">Yash</a> · Made with <a href="https://claude.ai/" target="_blank" rel="noopener noreferrer">Claude</a>.</footer>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="js/recipe.js"></script>
+</body>
+</html>
