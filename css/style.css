@@ -100,16 +100,6 @@ header.masthead {
   margin: 0;
 }
 
-.masthead h1 .drawer-index {
-  font-family: var(--mono);
-  font-size: 13px;
-  color: var(--plum-accent);
-  display: block;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  margin-bottom: 6px;
-}
-
 nav.tabs {
   display: flex;
   gap: 4px;
@@ -277,20 +267,15 @@ nav.tabs .count {
 /* ---------------------------------------------------
    Recipe detail (full page)
 --------------------------------------------------- */
+.detail-topbar {
+  padding: 32px 0 16px;
+}
+
 .detail-page {
   max-width: 640px;
   margin: 0 auto;
-}
-
-.detail-page .detail-inner {
-  border-radius: 6px;
+  padding: 8px 0 24px;
   color: var(--ink);
-  background: var(--paper-raised);
-  box-shadow: var(--shadow);
-}
-
-.detail-inner {
-  padding: 26px 26px 24px;
 }
 
 .detail-header {
@@ -576,7 +561,6 @@ footer.site-footer {
 
 @media (max-width: 520px) {
   .masthead h1 { font-size: 26px; }
-  .detail-inner { padding: 20px 18px 20px; }
 }
 
 /* ---------------------------------------------------
