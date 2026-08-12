@@ -23,6 +23,12 @@ import {
   type Ingredient,
 } from "@/lib/recipes";
 import { addIngredients } from "@/lib/shopping-list";
+import {
+  convertIngredient,
+  formatAmount,
+  useUnitSystem,
+  type UnitSystem,
+} from "@/lib/units";
 import { cn } from "@/lib/utils";
 
 export function RecipePage() {
@@ -37,13 +43,12 @@ export function RecipePage() {
   const [multiplier, setMultiplier] = React.useState(1);
   const [selected, setSelected] = React.useState<Set<number>>(new Set());
   const [doneSteps, setDoneSteps] = React.useState<Set<number>>(new Set());
+  const [unitSystem, setUnitSystem] = useUnitSystem();
 
-  // Everything starts ticked, matching how the list is usually used: add the
-  // whole recipe, then untick the two things you already have.
+  // Nothing starts ticked: "add all" is one tap away, so pre-selecting
+  // everything only creates work for anyone who wants a subset.
   React.useEffect(() => {
-    if (recipe?.ingredients) {
-      setSelected(new Set(recipe.ingredients.map((_, i) => i)));
-    }
+    setSelected(new Set());
     setServings(recipe?.servings ?? null);
     setMultiplier(1);
     setDoneSteps(new Set());
@@ -79,7 +84,11 @@ export function RecipePage() {
   const shownServings = baseServings ? (servings ?? baseServings) : null;
   const factor =
     baseServings && shownServings ? shownServings / baseServings : multiplier;
-  const scaled = ingredients.map((ing) => scaleIngredient(ing, factor));
+  // Scale in the recipe's own units first, then convert — converting first
+  // would round twice and compound the error.
+  const scaled = ingredients.map((ing) =>
+    convertIngredient(scaleIngredient(ing, factor), unitSystem),
+  );
 
   const maxServings = baseServings ? baseServings * 4 : 0;
   const canDecrease = baseServings ? (shownServings ?? 1) > 1 : multiplier > 0.25;
@@ -96,10 +105,11 @@ export function RecipePage() {
       ? setServings((s) => Math.min(maxServings, (s ?? baseServings) + 1))
       : setMultiplier((m) => Math.min(4, m + 0.25));
 
-  const meta = [
-    recipe.time ? `${Math.round(recipe.time)} min` : null,
-    shownServings ? `Serves ${shownServings}` : null,
-  ].filter(Boolean);
+  // Servings live on the stepper below, so repeating them here would just be
+  // a second number saying the same thing.
+  const meta = [recipe.time ? `${Math.round(recipe.time)} min` : null].filter(
+    Boolean,
+  );
 
   const addToList = (which: Ingredient[], label: string) => {
     addIngredients(which, recipe.title);
@@ -167,10 +177,12 @@ export function RecipePage() {
 
       {hasIngredients && (
         <section className="mt-9">
-          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-2">
-            <h2 className="label-mono text-muted-foreground">Ingredients</h2>
+          <h2 className="label-mono border-b border-border pb-2 text-muted-foreground">
+            Ingredients
+          </h2>
 
-            <div className="no-print flex items-center gap-2">
+          <div className="no-print mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div className="flex items-center gap-2">
               <span className="label-mono text-muted-foreground">
                 {baseServings ? "Servings" : "Scale"}
               </span>
@@ -200,9 +212,11 @@ export function RecipePage() {
                 </Button>
               </div>
             </div>
+
+            <UnitToggle value={unitSystem} onChange={setUnitSystem} />
           </div>
 
-          <ul className="mt-1">
+          <ul className="mt-3">
             {scaled.map((ing, idx) => (
               <li
                 key={`${ing.name}-${idx}`}
@@ -221,7 +235,7 @@ export function RecipePage() {
                   }
                 />
                 <span className="min-w-[76px] font-mono text-[13px] text-muted-foreground tabular">
-                  {formatQty(ing.qty)} {ing.unit}
+                  {formatAmount(ing.qty, ing.unit)} {ing.unit}
                 </span>
                 <label htmlFor={`ing-${idx}`} className="flex-1 text-[15px]">
                   {ing.name}
@@ -230,22 +244,9 @@ export function RecipePage() {
             ))}
           </ul>
 
+          {/* "Add all" is always available; the selected-only action appears
+              once there's actually a selection to act on. */}
           <div className="no-print mt-5 flex flex-wrap gap-2">
-            <Button
-              onClick={() => {
-                const chosen = scaled.filter((_, i) => selected.has(i));
-                if (chosen.length === 0) {
-                  toast.error("Select at least one ingredient first");
-                  return;
-                }
-                addToList(
-                  chosen,
-                  `Added ${chosen.length} ingredient${chosen.length === 1 ? "" : "s"} to your list`,
-                );
-              }}
-            >
-              Add selected to list
-            </Button>
             <Button
               variant="outline"
               onClick={() =>
@@ -254,6 +255,18 @@ export function RecipePage() {
             >
               Add all ingredients
             </Button>
+            {selected.size > 0 && (
+              <Button
+                onClick={() =>
+                  addToList(
+                    scaled.filter((_, i) => selected.has(i)),
+                    `Added ${selected.size} ingredient${selected.size === 1 ? "" : "s"} to your list`,
+                  )
+                }
+              >
+                Add {selected.size} to list
+              </Button>
+            )}
           </div>
         </section>
       )}
@@ -357,6 +370,45 @@ export function RecipePage() {
 
       <SiteFooter />
     </PageShell>
+  );
+}
+
+function UnitToggle({
+  value,
+  onChange,
+}: {
+  value: UnitSystem;
+  onChange: (next: UnitSystem) => void;
+}) {
+  const options: [UnitSystem, string][] = [
+    ["imperial", "Imperial"],
+    ["metric", "Metric"],
+  ];
+
+  return (
+    <div
+      role="group"
+      aria-label="Measurement units"
+      className="flex items-center rounded-md border border-border bg-card p-0.5"
+    >
+      {options.map(([system, label]) => (
+        <button
+          key={system}
+          type="button"
+          aria-pressed={value === system}
+          onClick={() => onChange(system)}
+          className={cn(
+            "rounded-sm px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.06em] transition-colors",
+            "focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+            value === system
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }
 

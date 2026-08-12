@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BackLink, PageShell, SiteFooter } from "@/components/page-shell";
-import { formatQty } from "@/lib/recipes";
+import { formatAmount } from "@/lib/units";
 import {
   clearAll,
   clearChecked,
@@ -139,7 +139,7 @@ export function ShoppingListPage() {
                       aria-label={`Mark ${item.name} purchased`}
                     />
                     <span className="min-w-[76px] font-mono text-[13px] text-muted-foreground tabular">
-                      {formatQty(item.qty)} {item.unit}
+                      {formatAmount(item.qty, item.unit)} {item.unit}
                     </span>
                     <span
                       className={cn(
