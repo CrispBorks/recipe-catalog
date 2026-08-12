@@ -2,7 +2,6 @@ import * as React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   CheckIcon,
-  LightbulbIcon,
   MinusIcon,
   PlusIcon,
   PrinterIcon,
@@ -24,7 +23,6 @@ import {
   type Ingredient,
 } from "@/lib/recipes";
 import { addIngredients } from "@/lib/shopping-list";
-import { useWakeLock } from "@/hooks/use-wake-lock";
 import { cn } from "@/lib/utils";
 
 export function RecipePage() {
@@ -33,11 +31,12 @@ export function RecipePage() {
   const navigate = useNavigate();
   const recipe = recipes.find((r) => r.id === id);
 
-  const [factor, setFactor] = React.useState(1);
+  // Recipes with a serving count step one serving at a time, down to 1.
+  // Ones without step by a plain multiplier instead.
+  const [servings, setServings] = React.useState<number | null>(null);
+  const [multiplier, setMultiplier] = React.useState(1);
   const [selected, setSelected] = React.useState<Set<number>>(new Set());
   const [doneSteps, setDoneSteps] = React.useState<Set<number>>(new Set());
-  const { supported: wakeSupported, active: wakeActive, toggle: toggleWake } =
-    useWakeLock();
 
   // Everything starts ticked, matching how the list is usually used: add the
   // whole recipe, then untick the two things you already have.
@@ -45,7 +44,8 @@ export function RecipePage() {
     if (recipe?.ingredients) {
       setSelected(new Set(recipe.ingredients.map((_, i) => i)));
     }
-    setFactor(1);
+    setServings(recipe?.servings ?? null);
+    setMultiplier(1);
     setDoneSteps(new Set());
   }, [recipe]);
 
@@ -74,9 +74,27 @@ export function RecipePage() {
 
   const ingredients = recipe.ingredients ?? [];
   const hasIngredients = ingredients.length > 0;
-  const scaled = ingredients.map((ing) => scaleIngredient(ing, factor));
+
   const baseServings = recipe.servings;
-  const shownServings = baseServings ? Math.round(baseServings * factor) : null;
+  const shownServings = baseServings ? (servings ?? baseServings) : null;
+  const factor =
+    baseServings && shownServings ? shownServings / baseServings : multiplier;
+  const scaled = ingredients.map((ing) => scaleIngredient(ing, factor));
+
+  const maxServings = baseServings ? baseServings * 4 : 0;
+  const canDecrease = baseServings ? (shownServings ?? 1) > 1 : multiplier > 0.25;
+  const canIncrease = baseServings
+    ? (shownServings ?? 1) < maxServings
+    : multiplier < 4;
+
+  const decrease = () =>
+    baseServings
+      ? setServings((s) => Math.max(1, (s ?? baseServings) - 1))
+      : setMultiplier((m) => Math.max(0.25, m - 0.25));
+  const increase = () =>
+    baseServings
+      ? setServings((s) => Math.min(maxServings, (s ?? baseServings) + 1))
+      : setMultiplier((m) => Math.min(4, m + 0.25));
 
   const meta = [
     recipe.time ? `${Math.round(recipe.time)} min` : null,
@@ -162,21 +180,21 @@ export function RecipePage() {
                   size="icon"
                   className="size-7"
                   aria-label="Decrease"
-                  disabled={factor <= 0.25}
-                  onClick={() => setFactor((f) => Math.max(0.25, f - 0.25))}
+                  disabled={!canDecrease}
+                  onClick={decrease}
                 >
                   <MinusIcon className="size-3.5" />
                 </Button>
                 <span className="min-w-9 text-center font-mono text-xs tabular">
-                  {baseServings ? shownServings : `×${formatQty(factor)}`}
+                  {baseServings ? shownServings : `×${formatQty(multiplier)}`}
                 </span>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="size-7"
                   aria-label="Increase"
-                  disabled={factor >= 4}
-                  onClick={() => setFactor((f) => Math.min(4, f + 0.25))}
+                  disabled={!canIncrease}
+                  onClick={increase}
                 >
                   <PlusIcon className="size-3.5" />
                 </Button>
@@ -242,24 +260,9 @@ export function RecipePage() {
 
       {recipe.steps && recipe.steps.length > 0 && (
         <section className="mt-10">
-          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-2">
-            <h2 className="label-mono text-muted-foreground">Method</h2>
-            {wakeSupported && (
-              <Button
-                variant={wakeActive ? "secondary" : "ghost"}
-                size="sm"
-                onClick={toggleWake}
-                className="no-print"
-                aria-pressed={wakeActive}
-                aria-label={wakeActive ? "Screen staying on" : "Keep screen on"}
-              >
-                <LightbulbIcon />
-                <span className="hidden sm:inline">
-                  {wakeActive ? "Screen staying on" : "Keep screen on"}
-                </span>
-              </Button>
-            )}
-          </div>
+          <h2 className="label-mono border-b border-border pb-2 text-muted-foreground">
+            Method
+          </h2>
 
           <ol className="mt-3 flex flex-col gap-1">
             {recipe.steps.map((step, idx) => {

@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 type Sort = "catalog" | "time" | "title";
 
 const SORT_LABELS: Record<Sort, string> = {
-  catalog: "Catalog order",
+  catalog: "Default",
   time: "Quickest first",
   title: "A–Z",
 };
@@ -114,15 +114,18 @@ export function CatalogPage() {
         </div>
       )}
 
-      <div className="mt-5 mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="font-mono text-[11px] text-muted-foreground tabular">
+      {/* No wrapping here: when the result line grows (several tags selected)
+          the controls used to wrap onto their own line and jump left. The
+          count truncates instead so the sort button stays put. */}
+      <div className="mt-5 mb-4 flex items-center justify-between gap-3">
+        <p className="min-w-0 truncate font-mono text-[11px] text-muted-foreground tabular">
           {loading
             ? "Opening the drawer…"
             : `${results.length} recipe${results.length === 1 ? "" : "s"}`}
           {activeTags.length > 0 && ` · ${activeTags.join(" + ")}`}
         </p>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {filtersActive && (
             <Button
               variant="ghost"
@@ -138,9 +141,11 @@ export function CatalogPage() {
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
+              {/* A fixed label keeps the button a constant width; the current
+                  choice is marked in the menu itself. */}
               <Button variant="outline" size="sm">
                 <ArrowUpDownIcon />
-                {SORT_LABELS[sort]}
+                Sort order
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">

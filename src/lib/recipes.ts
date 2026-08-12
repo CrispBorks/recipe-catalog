@@ -21,28 +21,52 @@ export async function fetchRecipes(): Promise<Recipe[]> {
   return (await res.json()) as Recipe[];
 }
 
-const FRACTIONS: [number, string][] = [
-  [1 / 8, "⅛"],
-  [1 / 4, "¼"],
-  [1 / 3, "⅓"],
-  [1 / 2, "½"],
-  [2 / 3, "⅔"],
-  [3 / 4, "¾"],
-];
+const GLYPHS: Record<string, string> = {
+  "1/2": "½", "1/3": "⅓", "2/3": "⅔", "1/4": "¼", "3/4": "¾",
+  "1/5": "⅕", "2/5": "⅖", "3/5": "⅗", "4/5": "⅘",
+  "1/6": "⅙", "5/6": "⅚",
+  "1/8": "⅛", "3/8": "⅜", "5/8": "⅝", "7/8": "⅞",
+};
 
-/** Renders a quantity the way a cook would write it: whole numbers plain,
- *  near-miss fractions as glyphs, anything else to two decimals. */
+const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
+
+/** Closest fraction with a denominator a cook would recognise. Smaller
+ *  denominators win ties, so 0.5 comes back as 1/2 rather than 8/16. */
+function bestFraction(value: number, maxDenominator = 16) {
+  let best: { n: number; d: number } | null = null;
+  let bestError = Infinity;
+
+  for (let d = 2; d <= maxDenominator; d++) {
+    const n = Math.round(value * d);
+    if (n <= 0) continue;
+    const error = Math.abs(value - n / d);
+    if (error < bestError - 1e-9) {
+      bestError = error;
+      const divisor = gcd(n, d);
+      best = { n: n / divisor, d: d / divisor };
+    }
+  }
+  return best && bestError <= 0.02 ? best : null;
+}
+
+/** Renders a quantity the way a cook would write it. Scaling a 12-serving
+ *  recipe down to 1 gives amounts like 0.0833 cup, which is unreadable in a
+ *  kitchen — as a fraction that's 1/12 cup, which isn't. */
 export function formatQty(qty: number | string | undefined): string {
   if (typeof qty !== "number") return qty ?? "";
   if (Number.isInteger(qty)) return String(qty);
 
   const whole = Math.floor(qty);
-  const rest = qty - whole;
-  for (const [value, glyph] of FRACTIONS) {
-    if (Math.abs(rest - value) < 0.02) {
-      return whole > 0 ? `${whole}${glyph}` : glyph;
-    }
+  const fraction = bestFraction(qty - whole);
+
+  if (fraction) {
+    const key = `${fraction.n}/${fraction.d}`;
+    const glyph = GLYPHS[key];
+    if (whole === 0) return glyph ?? key;
+    // Glyphs sit tight against the whole number (1½); "1 5/12" needs the space.
+    return glyph ? `${whole}${glyph}` : `${whole} ${key}`;
   }
+
   return qty.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 }
 
