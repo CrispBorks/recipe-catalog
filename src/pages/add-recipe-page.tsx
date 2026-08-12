@@ -19,6 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BackLink, PageShell, SiteFooter } from "@/components/page-shell";
+import { PasteRecipes } from "@/components/paste-recipes";
+import { SegmentedControl } from "@/components/segmented-control";
 import { useRecipes } from "@/hooks/use-recipes";
 import type { Recipe } from "@/lib/recipes";
 import { cn } from "@/lib/utils";
@@ -66,6 +68,7 @@ export function AddRecipePage() {
   const { recipes } = useRecipes();
   const [tags, setTags] = React.useState<string[]>([]);
   const [customTags, setCustomTags] = React.useState<string[]>([]);
+  const [tab, setTab] = React.useState<"form" | "paste">("form");
   const [newTag, setNewTag] = React.useState("");
   const [generated, setGenerated] = React.useState<Recipe | null>(null);
   const idTouched = React.useRef(false);
@@ -186,14 +189,33 @@ export function AddRecipePage() {
 
       <h1 className="display text-[30px] leading-none font-semibold">Add a recipe</h1>
       <p className="mt-3 max-w-[60ch] text-[14px] text-muted-foreground">
-        This page doesn't save anything by itself — it builds the JSON block.
-        You'll copy the result into{" "}
+        This page doesn't save anything by itself — it builds the JSON. You'll
+        put the result in{" "}
         <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[13px]">
           public/data/recipes.json
         </code>{" "}
         and commit it.
       </p>
 
+      <div className="mt-6">
+        <SegmentedControl
+          label="How to add recipes"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "form", label: "Fill in a form" },
+            { value: "paste", label: "Paste JSON" },
+          ]}
+          className="w-fit"
+        />
+      </div>
+
+      {tab === "paste" ? (
+        <div className="mt-6">
+          <PasteRecipes existing={recipes} />
+        </div>
+      ) : (
+      <>
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 flex flex-col gap-8">
         <Section title="Recipe details">
           <div className="grid gap-4 sm:grid-cols-[2fr_1fr_1fr]">
@@ -496,6 +518,8 @@ export function AddRecipePage() {
             </Button>
           </div>
         </div>
+      )}
+      </>
       )}
 
       <SiteFooter />

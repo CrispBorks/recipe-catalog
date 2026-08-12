@@ -2,18 +2,29 @@ import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 import type { Recipe } from "@/lib/recipes";
+import { cn } from "@/lib/utils";
 
-export function RecipeCard({ recipe, inList }: { recipe: Recipe; inList?: boolean }) {
+const CARD_CLASS =
+  "group relative flex flex-col gap-2.5 rounded-md border border-border bg-card py-3.5 pr-4 pl-8 shadow-card transition-colors";
+
+export function RecipeCard({
+  recipe,
+  inList,
+  preview,
+}: {
+  recipe: Recipe;
+  inList?: boolean;
+  /** Renders a non-navigating card — used to show what a pasted recipe will
+   *  look like before it exists at a URL. */
+  preview?: boolean;
+}) {
   const meta = [
     recipe.time ? `${recipe.time} min` : null,
     recipe.servings ? `Serves ${recipe.servings}` : null,
   ].filter(Boolean);
 
-  return (
-    <Link
-      to={`/recipe/${encodeURIComponent(recipe.id)}`}
-      className="group relative flex flex-col gap-2.5 rounded-md border border-border bg-card py-3.5 pr-4 pl-8 shadow-card transition-colors hover:border-foreground/35 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-    >
+  const body = (
+    <>
       {/* Punch hole, like a real catalog card. */}
       <span
         aria-hidden
@@ -34,10 +45,24 @@ export function RecipeCard({ recipe, inList }: { recipe: Recipe; inList?: boolea
       )}
 
       {meta.length > 0 && (
-        <p className="meta-mono text-muted-foreground">
-          {meta.join(" · ")}
-        </p>
+        <p className="meta-mono text-muted-foreground">{meta.join(" · ")}</p>
       )}
+    </>
+  );
+
+  if (preview) {
+    return <div className={CARD_CLASS}>{body}</div>;
+  }
+
+  return (
+    <Link
+      to={`/recipe/${encodeURIComponent(recipe.id)}`}
+      className={cn(
+        CARD_CLASS,
+        "hover:border-foreground/35 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+      )}
+    >
+      {body}
     </Link>
   );
 }

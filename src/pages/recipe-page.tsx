@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackLink, PageShell, SiteFooter } from "@/components/page-shell";
+import { SegmentedControl } from "@/components/segmented-control";
 import { useRecipes } from "@/hooks/use-recipes";
 import {
   extractYouTubeId,
@@ -23,12 +24,7 @@ import {
   type Ingredient,
 } from "@/lib/recipes";
 import { addIngredients } from "@/lib/shopping-list";
-import {
-  convertIngredient,
-  formatAmount,
-  useUnitSystem,
-  type UnitSystem,
-} from "@/lib/units";
+import { convertIngredient, formatAmount, useUnitSystem } from "@/lib/units";
 import { cn } from "@/lib/utils";
 
 export function RecipePage() {
@@ -211,7 +207,15 @@ export function RecipePage() {
               </div>
             </div>
 
-            <UnitToggle value={unitSystem} onChange={setUnitSystem} />
+            <SegmentedControl
+              label="Measurement units"
+              value={unitSystem}
+              onChange={setUnitSystem}
+              options={[
+                { value: "imperial", label: "Imperial" },
+                { value: "metric", label: "Metric" },
+              ]}
+            />
           </div>
 
           <h2 className="label-mono border-b border-border pb-2 text-muted-foreground">
@@ -372,45 +376,6 @@ export function RecipePage() {
 
       <SiteFooter />
     </PageShell>
-  );
-}
-
-function UnitToggle({
-  value,
-  onChange,
-}: {
-  value: UnitSystem;
-  onChange: (next: UnitSystem) => void;
-}) {
-  const options: [UnitSystem, string][] = [
-    ["imperial", "Imperial"],
-    ["metric", "Metric"],
-  ];
-
-  return (
-    <div
-      role="group"
-      aria-label="Measurement units"
-      className="flex items-center rounded-md border border-border bg-card p-0.5"
-    >
-      {options.map(([system, label]) => (
-        <button
-          key={system}
-          type="button"
-          aria-pressed={value === system}
-          onClick={() => onChange(system)}
-          className={cn(
-            "label-mono rounded-sm px-2.5 py-1 transition-colors",
-            "focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
-            value === system
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
   );
 }
 
