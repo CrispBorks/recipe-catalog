@@ -188,7 +188,7 @@ export function AddRecipePage() {
       <p className="mt-3 max-w-[60ch] text-[14px] text-muted-foreground">
         This page doesn't save anything by itself — it builds the JSON block.
         You'll copy the result into{" "}
-        <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[12px]">
+        <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[13px]">
           public/data/recipes.json
         </code>{" "}
         and commit it.
@@ -263,7 +263,7 @@ export function AddRecipePage() {
                 },
               })}
               placeholder="lemon-garlic-roast-chicken"
-              className="font-mono text-[13px]"
+              className="font-mono"
               aria-invalid={!!formState.errors.id}
             />
             )}
@@ -281,7 +281,7 @@ export function AddRecipePage() {
                     aria-pressed={active}
                     onClick={() => toggleTag(tag)}
                     className={cn(
-                      "rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.06em] transition-colors",
+                      "label-mono rounded-full border px-2.5 py-1 transition-colors",
                       "focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
                       active
                         ? "border-foreground bg-primary text-primary-foreground"
@@ -327,13 +327,13 @@ export function AddRecipePage() {
                   {...register(`ingredients.${index}.qty`)}
                   placeholder="2"
                   inputMode="decimal"
-                  className="w-16 shrink-0 font-mono text-[13px]"
+                  className="w-16 shrink-0 font-mono"
                   aria-label={`Quantity ${index + 1}`}
                 />
                 <Input
                   {...register(`ingredients.${index}.unit`)}
                   placeholder="tbsp"
-                  className="w-20 shrink-0 font-mono text-[13px]"
+                  className="w-20 shrink-0 font-mono"
                   aria-label={`Unit ${index + 1}`}
                 />
                 <Input
@@ -371,7 +371,7 @@ export function AddRecipePage() {
           <div className="flex flex-col gap-2">
             {steps.fields.map((field, index) => (
               <div key={field.id} className="flex items-start gap-2">
-                <span className="mt-2.5 grid size-5 shrink-0 place-items-center rounded-full border border-border font-mono text-[11px] text-muted-foreground tabular">
+                <span className="meta-mono mt-2.5 grid size-5 shrink-0 place-items-center rounded-full border border-border text-muted-foreground">
                   {index + 1}
                 </span>
                 <Textarea

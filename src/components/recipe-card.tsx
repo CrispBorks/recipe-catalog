@@ -34,7 +34,7 @@ export function RecipeCard({ recipe, inList }: { recipe: Recipe; inList?: boolea
       )}
 
       {meta.length > 0 && (
-        <p className="font-mono text-[11px] text-muted-foreground tabular">
+        <p className="meta-mono text-muted-foreground">
           {meta.join(" · ")}
         </p>
       )}

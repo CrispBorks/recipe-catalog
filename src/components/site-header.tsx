@@ -38,7 +38,7 @@ export function SiteHeader() {
           >
             <ClipboardListIcon />
             {count > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] rounded-full bg-status px-1 text-center font-mono text-[10px] leading-[18px] text-status-foreground tabular">
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] rounded-full bg-status px-1 text-center font-mono text-[11px] leading-[18px] text-status-foreground tabular">
                 {count}
               </span>
             )}

@@ -143,11 +143,21 @@
   letter-spacing: -0.02em;
 }
 
+/* The third type role, in two tiers. `label-mono` names things — section
+   headings, button labels, chips, toggles. `meta-mono` carries data — times,
+   counts, quantities. Everything small in the interface is one or the other;
+   nothing invents its own size. */
 @utility label-mono {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: 0.6875rem; /* 11px */
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
+}
+
+@utility meta-mono {
+  font-family: var(--font-mono);
+  font-size: 0.75rem; /* 12px */
+  font-variant-numeric: tabular-nums;
 }
 
 @media print {

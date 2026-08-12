@@ -77,15 +77,17 @@ export function CatalogPage() {
     <PageShell>
       <SiteHeader />
 
+      {/* Mono is wider than the sans it replaced, so the placeholder is kept
+          short enough to survive a 320px screen without clipping mid-word. */}
       <div className="relative">
         <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search recipes, ingredients, or tags…"
-          aria-label="Search recipes"
-          className="h-12 pl-10 text-[15px] placeholder:text-muted-foreground"
+          placeholder="Search recipes…"
+          aria-label="Search recipes, ingredients, or tags"
+          className="h-12 pl-10 font-mono placeholder:text-muted-foreground"
         />
       </div>
 
@@ -100,7 +102,7 @@ export function CatalogPage() {
                 aria-pressed={active}
                 onClick={() => toggleTag(tag)}
                 className={cn(
-                  "rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.06em] transition-colors",
+                  "label-mono rounded-full border px-2.5 py-1 transition-colors",
                   "focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
                   active
                     ? "border-foreground bg-primary text-primary-foreground"
@@ -118,7 +120,7 @@ export function CatalogPage() {
           the controls used to wrap onto their own line and jump left. The
           count truncates instead so the sort button stays put. */}
       <div className="mt-5 mb-4 flex items-center justify-between gap-3">
-        <p className="min-w-0 truncate font-mono text-[11px] text-muted-foreground tabular">
+        <p className="meta-mono min-w-0 truncate text-muted-foreground">
           {loading
             ? "Opening the drawer…"
             : `${results.length} recipe${results.length === 1 ? "" : "s"}`}
@@ -187,7 +189,7 @@ export function CatalogPage() {
         </div>
       )}
 
-      <p className="mt-8 hidden font-mono text-[11px] text-muted-foreground sm:block">
+      <p className="meta-mono mt-8 hidden text-muted-foreground sm:block">
         Press{" "}
         <Badge variant="default" className="mx-0.5 align-middle">
           ⌘K

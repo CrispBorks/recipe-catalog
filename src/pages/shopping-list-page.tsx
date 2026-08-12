@@ -138,7 +138,7 @@ export function ShoppingListPage() {
                       }
                       aria-label={`Mark ${item.name} purchased`}
                     />
-                    <span className="min-w-[76px] font-mono text-[13px] text-muted-foreground tabular">
+                    <span className="meta-mono min-w-[76px] text-muted-foreground">
                       {formatAmount(item.qty, item.unit)} {item.unit}
                     </span>
                     <span

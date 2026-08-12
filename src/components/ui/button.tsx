@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 // section labels and metadata. Keeps the chrome monochrome — the only
 // colored variant is `destructive`, which is a status, not decoration.
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md font-mono text-[11px] uppercase tracking-[0.08em] transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md label-mono transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -18,7 +18,7 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent hover:text-accent-foreground",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/88 focus-visible:ring-destructive/30",
-        link: "font-sans text-[13px] normal-case tracking-normal underline underline-offset-4 hover:opacity-70",
+        link: "font-sans text-[13px] tracking-normal normal-case underline underline-offset-4 hover:opacity-70",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

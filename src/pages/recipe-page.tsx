@@ -163,7 +163,7 @@ export function RecipePage() {
       {(meta.length > 0 || recipe.tags?.length) && (
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
           {meta.length > 0 && (
-            <p className="font-mono text-xs text-muted-foreground tabular">
+            <p className="meta-mono text-muted-foreground">
               {meta.join(" · ")}
             </p>
           )}
@@ -195,7 +195,7 @@ export function RecipePage() {
                 >
                   <MinusIcon className="size-3.5" />
                 </Button>
-                <span className="min-w-9 text-center font-mono text-xs tabular">
+                <span className="meta-mono min-w-9 text-center">
                   {baseServings ? shownServings : `×${formatQty(multiplier)}`}
                 </span>
                 <Button
@@ -236,7 +236,7 @@ export function RecipePage() {
                     })
                   }
                 />
-                <span className="min-w-[76px] font-mono text-[13px] text-muted-foreground tabular">
+                <span className="meta-mono min-w-[76px] text-muted-foreground">
                   {formatAmount(ing.qty, ing.unit)} {ing.unit}
                 </span>
                 <label htmlFor={`ing-${idx}`} className="flex-1 text-[15px]">
@@ -303,7 +303,7 @@ export function RecipePage() {
                   >
                     <span
                       className={cn(
-                        "mt-[3px] grid size-5 shrink-0 place-items-center rounded-full border font-mono text-[11px] tabular",
+                        "meta-mono mt-[3px] grid size-5 shrink-0 place-items-center rounded-full border",
                         done
                           ? "border-status bg-status text-status-foreground"
                           : "border-border text-muted-foreground",
@@ -400,7 +400,7 @@ function UnitToggle({
           aria-pressed={value === system}
           onClick={() => onChange(system)}
           className={cn(
-            "rounded-sm px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.06em] transition-colors",
+            "label-mono rounded-sm px-2.5 py-1 transition-colors",
             "focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
             value === system
               ? "bg-primary text-primary-foreground"

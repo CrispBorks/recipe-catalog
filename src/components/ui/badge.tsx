@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 // not a state worth spending the palette's only hue on. `status` is, and is
 // the one variant allowed to carry color.
 const badgeVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1 rounded-full border font-mono text-[10px] uppercase tracking-[0.06em] whitespace-nowrap transition-colors [&>svg]:size-3 [&>svg]:pointer-events-none",
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1 rounded-full border label-mono whitespace-nowrap transition-colors [&>svg]:size-3 [&>svg]:pointer-events-none",
   {
     variants: {
       variant: {

@@ -39,7 +39,7 @@ export function CommandPalette() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Search recipes, ingredients, or tags…" />
+      <CommandInput placeholder="Search recipes…" />
       <CommandList>
         <CommandEmpty>Nothing in the drawer matches that.</CommandEmpty>
 
@@ -59,7 +59,7 @@ export function CommandPalette() {
               <UtensilsCrossedIcon className="text-muted-foreground" />
               <span className="flex-1">{recipe.title}</span>
               {recipe.time && (
-                <span className="font-mono text-[11px] text-muted-foreground tabular">
+                <span className="meta-mono text-muted-foreground">
                   {recipe.time} min
                 </span>
               )}
