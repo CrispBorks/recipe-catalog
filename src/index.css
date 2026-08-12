@@ -1,86 +1,84 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
 /* ---------------------------------------------------
-   Card Catalog — a recipe box, on the web.
+   Card Catalog — "Card Stock"
 
-   The palette is the original card-catalog one (warm paper, ink,
-   plum + sage accents) mapped onto shadcn's semantic token names, so
-   every shadcn component inherits the house style without restyling.
+   A monochrome system on warm-grey stock. The only hue in the whole
+   interface is --status, used for state the reader needs to spot without
+   reading (already in the list, checked off) plus --destructive for
+   irreversible actions. Tags, buttons, cards and chrome stay neutral.
 --------------------------------------------------- */
 :root {
-  --radius: 0.25rem;
+  --radius: 0.1875rem;
 
-  --background: #fbf8f2;
-  --foreground: #221f1a;
+  --background: #efeeea;
+  --foreground: #1a1a17;
 
-  --card: #ffffff;
-  --card-foreground: #221f1a;
-  --popover: #ffffff;
-  --popover-foreground: #221f1a;
+  --card: #fbfaf8;
+  --card-foreground: #1a1a17;
+  --popover: #fbfaf8;
+  --popover-foreground: #1a1a17;
 
-  --primary: #5b3358;
-  --primary-foreground: #fdfbf7;
+  --primary: #1a1a17;
+  --primary-foreground: #fbfaf8;
 
-  --secondary: #f1ebdd;
-  --secondary-foreground: #221f1a;
+  --secondary: #e4e2db;
+  --secondary-foreground: #1a1a17;
 
-  --muted: #f1ebdd;
-  --muted-foreground: #5c574c;
+  --muted: #e4e2db;
+  --muted-foreground: #66645c;
 
-  --accent: #efe8d8;
-  --accent-foreground: #221f1a;
+  --accent: #e4e2db;
+  --accent-foreground: #1a1a17;
 
+  --border: #d8d6ce;
+  --input: #d8d6ce;
+  --ring: #1a1a17;
+
+  /* The only color in the system. */
+  --status: #cfe6cd;
+  --status-foreground: #2c5228;
   --destructive: #a6432f;
-  --destructive-foreground: #fdfbf7;
+  --destructive-foreground: #fbfaf8;
 
-  --border: #ddd5c2;
-  --input: #ddd5c2;
-  --ring: #5b3358;
-
-  /* Brand accents for text and rules — the plum/sage used as ink rather
-     than as a solid fill. */
-  --brand-ink: #5b3358;
-  --sage-ink: #55705b;
-
-  --shadow-card: 0 1px 0 rgb(34 31 26 / 0.06), 0 6px 16px -10px rgb(34 31 26 / 0.35);
+  --shadow-card: 0 1px 0 rgb(26 26 23 / 0.05), 0 5px 14px -10px rgb(26 26 23 / 0.4);
 }
 
 .dark {
-  --background: #1b1815;
-  --foreground: #f2ede2;
+  --background: #131311;
+  --foreground: #edebe4;
 
-  --card: #242019;
-  --card-foreground: #f2ede2;
-  --popover: #242019;
-  --popover-foreground: #f2ede2;
+  --card: #1b1b18;
+  --card-foreground: #edebe4;
+  --popover: #1b1b18;
+  --popover-foreground: #edebe4;
 
-  /* The deep plum reads as near-black on a dark ground, so solid fills
-     step up to a mid tone and ink-style accents go brighter still. */
-  --primary: #7a4f82;
-  --primary-foreground: #fdfbf7;
+  /* Monochrome means the primary fill inverts rather than shifting hue. */
+  --primary: #edebe4;
+  --primary-foreground: #171714;
 
-  --secondary: #2e2921;
-  --secondary-foreground: #f2ede2;
+  --secondary: #26251f;
+  --secondary-foreground: #edebe4;
 
-  --muted: #2e2921;
-  --muted-foreground: #b9b0a0;
+  --muted: #26251f;
+  --muted-foreground: #97948a;
 
-  --accent: #322c23;
-  --accent-foreground: #f2ede2;
+  --accent: #2e2d28;
+  --accent-foreground: #edebe4;
 
+  --border: #2e2d28;
+  --input: #2e2d28;
+  --ring: #edebe4;
+
+  --status: #1f3a1d;
+  --status-foreground: #9ed49a;
   --destructive: #d4634a;
-  --destructive-foreground: #fdfbf7;
+  --destructive-foreground: #171714;
 
-  --border: #3a352c;
-  --input: #3a352c;
-  --ring: #cc9edb;
-
-  --brand-ink: #cc9edb;
-  --sage-ink: #8fc194;
-
-  --shadow-card: 0 1px 0 rgb(0 0 0 / 0.3), 0 6px 20px -10px rgb(0 0 0 / 0.6);
+  --shadow-card: 0 1px 0 rgb(0 0 0 / 0.3), 0 5px 16px -10px rgb(0 0 0 / 0.7);
 }
 
 @theme inline {
@@ -100,16 +98,18 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-status: var(--status);
+  --color-status-foreground: var(--status-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-brand-ink: var(--brand-ink);
-  --color-sage-ink: var(--sage-ink);
 
-  --radius-sm: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 1px);
   --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 2px);
-  --radius-xl: calc(var(--radius) + 6px);
+  --radius-lg: calc(var(--radius) + 3px);
+  --radius-xl: calc(var(--radius) + 7px);
+
+  --shadow-card: var(--shadow-card);
 
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-serif: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
@@ -129,26 +129,25 @@
     @apply bg-background text-foreground font-sans antialiased;
     line-height: 1.5;
   }
+}
 
-  /* Quantities and times line up in columns when the digits are the same
-     width — worth it on the ingredient and shopping lists. */
-  .tabular {
-    font-variant-numeric: tabular-nums;
-  }
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
 
-  /* Fraunces is a variable font with an optical size axis; larger display
-     sizes want the higher end of it. */
-  .display {
-    @apply font-serif;
-    font-optical-sizing: auto;
-    font-variation-settings: "opsz" 96;
-    letter-spacing: -0.015em;
-  }
+/* Fraunces carries an optical-size axis; display sizes want the top of it. */
+@utility display {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-variation-settings: "opsz" 96;
+  letter-spacing: -0.015em;
+}
 
-  .label-mono {
-    @apply font-mono text-xs uppercase;
-    letter-spacing: 0.1em;
-  }
+@utility label-mono {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 @media print {
