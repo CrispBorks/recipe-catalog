@@ -66,7 +66,7 @@ export function RecipePage() {
         <div className="no-print pt-9 pb-5">
           <BackLink />
         </div>
-        <p className="rounded-md border border-dashed border-border p-8 text-center font-serif text-lg text-muted-foreground">
+        <p className="rounded-md border border-dashed border-border p-8 text-center text-[15px] text-muted-foreground">
           That card isn't in the drawer.{" "}
           <Link to="/" className="underline underline-offset-2">
             Back to the catalog.
@@ -177,11 +177,9 @@ export function RecipePage() {
 
       {hasIngredients && (
         <section className="mt-9">
-          <h2 className="label-mono border-b border-border pb-2 text-muted-foreground">
-            Ingredients
-          </h2>
-
-          <div className="no-print mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {/* The controls govern the whole section, so they sit above its
+              heading rather than between the heading and the list. */}
+          <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <div className="flex items-center gap-2">
               <span className="label-mono text-muted-foreground">
                 {baseServings ? "Servings" : "Scale"}
@@ -216,7 +214,11 @@ export function RecipePage() {
             <UnitToggle value={unitSystem} onChange={setUnitSystem} />
           </div>
 
-          <ul className="mt-3">
+          <h2 className="label-mono border-b border-border pb-2 text-muted-foreground">
+            Ingredients
+          </h2>
+
+          <ul className="mt-1">
             {scaled.map((ing, idx) => (
               <li
                 key={`${ing.name}-${idx}`}

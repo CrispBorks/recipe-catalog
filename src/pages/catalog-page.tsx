@@ -85,7 +85,7 @@ export function CatalogPage() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search recipes, ingredients, or tags…"
           aria-label="Search recipes"
-          className="h-12 pl-10 font-serif text-base italic placeholder:text-muted-foreground"
+          className="h-12 pl-10 text-[15px] placeholder:text-muted-foreground"
         />
       </div>
 
@@ -166,13 +166,13 @@ export function CatalogPage() {
       </div>
 
       {error ? (
-        <p className="rounded-md border border-dashed border-border p-8 text-center font-serif text-lg text-muted-foreground">
+        <p className="rounded-md border border-dashed border-border p-8 text-center text-[15px] text-muted-foreground">
           Couldn't load the recipe drawer. Check your connection and reload.
         </p>
       ) : loading ? (
         <CardGridSkeleton />
       ) : results.length === 0 ? (
-        <p className="rounded-md border border-dashed border-border p-8 text-center font-serif text-lg text-muted-foreground">
+        <p className="rounded-md border border-dashed border-border p-8 text-center text-[15px] text-muted-foreground">
           Nothing in the drawer matches that search.
         </p>
       ) : (

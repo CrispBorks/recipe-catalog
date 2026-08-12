@@ -112,7 +112,7 @@
   --shadow-card: var(--shadow-card);
 
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-serif: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-display: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
@@ -135,12 +135,12 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Fraunces carries an optical-size axis; display sizes want the top of it. */
+/* Headings run in Instrument Sans — a grotesque that stays legible at card-title
+   sizes on a phone, where a high-contrast serif does not. Tightening the
+   tracking is what gives it presence at display sizes. */
 @utility display {
-  font-family: var(--font-serif);
-  font-optical-sizing: auto;
-  font-variation-settings: "opsz" 96;
-  letter-spacing: -0.015em;
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
 }
 
 @utility label-mono {

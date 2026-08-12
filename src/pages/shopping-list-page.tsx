@@ -115,7 +115,7 @@ export function ShoppingListPage() {
       </div>
 
       {empty ? (
-        <p className="mt-8 rounded-md border border-dashed border-border p-8 text-center font-serif text-lg text-muted-foreground">
+        <p className="mt-8 rounded-md border border-dashed border-border p-8 text-center text-[15px] text-muted-foreground">
           Your list is empty. Add ingredients from any recipe.
         </p>
       ) : (
@@ -177,18 +177,21 @@ export function ShoppingListPage() {
           <CopyIcon />
           Copy list
         </Button>
-        <Button
-          variant="outline"
-          disabled={checkedCount === 0}
-          onClick={() =>
-            withUndo(
-              `Removed ${checkedCount} checked item${checkedCount === 1 ? "" : "s"}`,
-              clearChecked,
-            )
-          }
-        >
-          Remove checked
-        </Button>
+        {/* Nothing starts checked, so this only appears once there's something
+            for it to remove. */}
+        {checkedCount > 0 && (
+          <Button
+            variant="outline"
+            onClick={() =>
+              withUndo(
+                `Removed ${checkedCount} checked item${checkedCount === 1 ? "" : "s"}`,
+                clearChecked,
+              )
+            }
+          >
+            Remove checked
+          </Button>
+        )}
       </div>
 
       <p className="mt-5 text-[13px] leading-relaxed text-muted-foreground">
