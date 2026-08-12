@@ -86,7 +86,7 @@ header.masthead {
 
 .masthead-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
@@ -100,35 +100,40 @@ header.masthead {
   margin: 0;
 }
 
-nav.tabs {
+.header-actions {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 10px;
 }
 
-nav.tabs button {
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  background: none;
+.icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
   border: 1px solid var(--rule);
-  color: var(--ink-soft);
-  padding: 8px 14px;
   border-radius: var(--radius);
-  cursor: pointer;
+  color: var(--ink-soft);
+  background: var(--paper-raised);
+  text-decoration: none;
 }
 
-nav.tabs button[aria-current="true"] {
+.icon-btn .count-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
   background: var(--plum);
-  border-color: var(--plum);
   color: #fff;
-}
-
-nav.tabs .count {
-  display: inline-block;
-  min-width: 16px;
-  margin-left: 6px;
-  opacity: 0.85;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
 }
 
 /* ---------------------------------------------------
@@ -395,6 +400,9 @@ nav.tabs .count {
    Buttons
 --------------------------------------------------- */
 .btn {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
   font-family: var(--mono);
   font-size: 12px;
   letter-spacing: 0.05em;
@@ -428,33 +436,26 @@ nav.tabs .count {
 /* ---------------------------------------------------
    Shopping list — ruled notepad motif
 --------------------------------------------------- */
-.list-panel {
-  background: var(--paper-raised);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-}
-
-.list-panel-header {
+.list-page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  padding: 16px 18px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--rule);
   flex-wrap: wrap;
 }
 
-.list-panel-header h2 {
+.list-page-header h2 {
   font-family: var(--serif);
-  font-size: 20px;
+  font-size: 26px;
   margin: 0;
 }
 
 ul.shopping-items {
   list-style: none;
   margin: 0;
-  padding: 4px 18px;
+  padding: 4px 0;
 }
 
 ul.shopping-items li {
@@ -508,18 +509,18 @@ ul.shopping-items .remove-item {
 
 ul.shopping-items .remove-item:hover { color: var(--rust); }
 
-.list-panel-footer {
+.list-page-footer {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 16px 18px 18px;
+  padding: 20px 0 8px;
 }
 
 .reminders-note {
   font-family: var(--sans);
   font-size: 13px;
   color: var(--ink-soft);
-  padding: 0 18px 18px;
+  padding: 8px 0 0;
   line-height: 1.55;
 }
 
