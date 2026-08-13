@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BackLink, PageShell, SiteFooter } from "@/components/page-shell";
+import { ImportLink } from "@/components/import-link";
 import { PasteRecipes } from "@/components/paste-recipes";
 import { PasteText } from "@/components/paste-text";
 import { SegmentedControl } from "@/components/segmented-control";
@@ -70,7 +71,7 @@ export function AddRecipePage() {
   const { recipes } = useRecipes();
   const [tags, setTags] = React.useState<string[]>([]);
   const [customTags, setCustomTags] = React.useState<string[]>([]);
-  const [tab, setTab] = React.useState<"form" | "text" | "json">("form");
+  const [tab, setTab] = React.useState<"form" | "link" | "text" | "json">("form");
   const [newTag, setNewTag] = React.useState("");
   const [generated, setGenerated] = React.useState<Recipe | null>(null);
   const idTouched = React.useRef(false);
@@ -230,6 +231,7 @@ export function AddRecipePage() {
           onChange={setTab}
           options={[
             { value: "form", label: "Form" },
+            { value: "link", label: "Link" },
             { value: "text", label: "Paste text" },
             { value: "json", label: "Paste JSON" },
           ]}
@@ -237,7 +239,11 @@ export function AddRecipePage() {
         />
       </div>
 
-      {tab === "text" ? (
+      {tab === "link" ? (
+        <div className="mt-6">
+          <ImportLink onUse={useParsed} />
+        </div>
+      ) : tab === "text" ? (
         <div className="mt-6">
           <PasteText onUse={useParsed} />
         </div>

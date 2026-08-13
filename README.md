@@ -45,6 +45,7 @@ shadcn's semantic names, so the look can be changed in one file.
 ```
 recipe-catalog/
 ├── index.html               # Vite entry
+├── api/import.ts            # serverless: reads a recipe off a URL (no API key)
 ├── public/data/recipes.json # recipe data — edit or extend this
 ├── src/
 │   ├── App.tsx              # routes (incl. redirects for pre-rewrite URLs)
@@ -69,8 +70,15 @@ Other scripts: `npm run build` (typechecks, then builds to `dist/`),
 ## Deploying
 
 The app is a static single-page build, deployed on Vercel. `vercel.json`
-rewrites every path to `index.html` so deep links like `/recipe/lemon-garlic-roast-chicken`
-resolve on a hard refresh — any host needs that same SPA fallback.
+rewrites every path except `/api/*` to `index.html` so deep links like
+`/recipe/lemon-garlic-roast-chicken` resolve on a hard refresh — any host needs
+that same SPA fallback.
+
+The one server-side piece is `api/import.ts`, which fetches a recipe page and
+reads its schema.org JSON-LD. It exists only because a browser can't fetch
+another origin's HTML; there's no API key or paid service behind it. Under
+`npm run dev` that route isn't served — use `vercel dev` to exercise it
+locally, or just test it on a preview deployment.
 
 **Send to Reminders** relies on `navigator.share`, which requires HTTPS.
 
@@ -78,7 +86,16 @@ resolve on a hard refresh — any host needs that same SPA fallback.
 
 Use the built-in builder at `/add-recipe` — it validates the fields, checks the
 slug isn't already taken, and hands back the JSON block (or the whole updated
-file) to drop into `public/data/recipes.json`.
+file) to drop into `public/data/recipes.json`. Four ways in:
+
+| Tab | What it takes | How reliable |
+| --- | --- | --- |
+| **Form** | Typed by hand | Exact |
+| **Link** | A recipe page URL | Exact where the site publishes JSON-LD, which most do |
+| **Paste text** | A wall of recipe text | Heuristic — always check it in the form |
+| **Paste JSON** | One or more recipes already in this format | Validated, with per-recipe errors |
+
+All of them land in the form, so nothing is saved without a look first.
 
 To write one by hand:
 
