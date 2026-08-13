@@ -3,11 +3,9 @@ import {
   AlertTriangleIcon,
   BookmarkIcon,
   CheckIcon,
-  DownloadIcon,
   Loader2Icon,
   XCircleIcon,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -60,23 +58,6 @@ export function PasteRecipes({
   const ready = items.filter((item) => item.recipe !== null);
   const canSave = outcome.ok && errorCount === 0 && ready.length > 0;
 
-  /** Exports what's actually saved, and is always available. It used to export
-   *  the catalog *plus* whatever was in the textarea, which meant you couldn't
-   *  take a copy of your recipes without first pasting one in. */
-  const download = () => {
-    const blob = new Blob([JSON.stringify(existing, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "recipes.json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    toast.success(`Downloaded ${existing.length} recipe${existing.length === 1 ? "" : "s"}`);
-  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -231,18 +212,6 @@ export function PasteRecipes({
         </>
       )}
 
-      {/* Export, not part of the paste flow — it's the only way to take a copy
-          of the catalog now that it lives in a database, so it doesn't wait on
-          you pasting something first. */}
-      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-5">
-        <Button variant="outline" onClick={download} disabled={existing.length === 0}>
-          <DownloadIcon />
-          Download all recipes
-        </Button>
-        <span className="meta-mono text-muted-foreground">
-          {existing.length} in the catalog
-        </span>
-      </div>
     </div>
   );
 }

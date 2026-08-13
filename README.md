@@ -153,7 +153,7 @@ you start if you're typing one out by hand.
 | **Link** | Exact where the site publishes JSON-LD, which most do |
 | **Text** | Heuristic — worth a look in the form |
 | **Form** | Exact |
-| **Paste JSON** (separate tab) | Validated, with per-recipe errors; also where the backup download lives |
+| **Paste JSON** (separate tab) | Validated, with per-recipe errors |
 
 **Save to catalog** writes to the database and the recipe shows up straight
 away. There's no JSON to generate or commit — that button existed when the
