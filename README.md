@@ -47,7 +47,6 @@ recipe-catalog/
 ├── index.html               # Vite entry
 ├── api/import.ts            # serverless: reads a recipe off a URL (no API key)
 ├── api/recipes.ts           # serverless: recipes saved from the app (Postgres)
-├── public/data/recipes.json # recipe data — edit or extend this
 ├── src/
 │   ├── App.tsx              # routes (incl. redirects for pre-rewrite URLs)
 │   ├── index.css            # design tokens, light + dark
@@ -115,8 +114,7 @@ new route, not a change to this one.
 ## Adding your own recipes
 
 Use the built-in builder at `/add-recipe` — it validates the fields, checks the
-slug isn't already taken, and hands back the JSON block (or the whole updated
-file) to drop into `public/data/recipes.json`. Four ways in:
+slug isn't already taken, and saves it to the catalog. Four ways in:
 
 | Tab | What it takes | How reliable |
 | --- | --- | --- |
@@ -125,17 +123,16 @@ file) to drop into `public/data/recipes.json`. Four ways in:
 | **Paste text** | A wall of recipe text | Heuristic — always check it in the form |
 | **Paste JSON** | One or more recipes already in this format | Validated, with per-recipe errors |
 
-All of them land in the form, so nothing is saved without a look first. From
-there, **Save to catalog** writes the recipe to the database and it appears
-straight away; **Generate recipe JSON** gives you the block to commit into
-`public/data/recipes.json` instead.
+Every route lands in the form first, so nothing is saved without a look. **Save
+to catalog** then writes it to the database and it shows up straight away.
 
-The two live side by side on purpose. Recipes in the JSON file are the ones in
-git — versioned, reviewable, and present in every deployment. Recipes in the
-store are the ones you added from your phone. The catalog merges them, and a
-stored recipe with the same id as a shipped one wins.
+The catalog is whatever is in the database — there are no recipes in the repo.
+There used to be ten sample ones in `public/data/recipes.json` that got merged
+in at read time; they were demo data, and keeping two sources meant every read
+and write had to reason about which one a recipe came from. **Download a
+backup** on the builder page is how you take a copy of everything.
 
-To write one by hand:
+A recipe is shaped like this — the same JSON the **Paste JSON** tab accepts:
 
 ```json
 {

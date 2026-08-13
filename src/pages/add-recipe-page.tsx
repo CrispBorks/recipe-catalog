@@ -91,7 +91,9 @@ export function AddRecipePage() {
   const [generated, setGenerated] = React.useState<Recipe | null>(null);
   const idTouched = React.useRef(false);
   const outputRef = React.useRef<HTMLDivElement>(null);
-  const lastParsed = React.useRef<ParsedRecipe | null>(null);
+  /** What to do again once the key has been typed in. Every save sets it, so
+   *  the prompt can retry whichever one was interrupted. */
+  const retry = React.useRef<(() => void) | null>(null);
 
   const form = useForm<FormValues>({ defaultValues: EMPTY, mode: "onSubmit" });
   const { register, handleSubmit, watch, setValue, reset, formState } = form;
@@ -172,6 +174,7 @@ export function AddRecipePage() {
 
   /** Saves straight to the catalog, so the recipe is there without a commit. */
   const save = async (recipe: Recipe) => {
+    retry.current = () => void save(recipe);
     const key = catalogKey.trim() || readStoredKey();
 
     if (!key) {
@@ -207,7 +210,6 @@ export function AddRecipePage() {
    *  the button has already shown exactly what will be saved, and anything
    *  wrong can be fixed by re-saving the same id from the form afterwards. */
   const saveParsed = async (parsed: ParsedRecipe) => {
-    lastParsed.current = parsed;
     const recipe: Recipe = {
       id: slugify(parsed.title),
       title: parsed.title.trim(),
@@ -233,6 +235,54 @@ export function AddRecipePage() {
     if (parsed.notes.length) recipe.notes = parsed.notes;
 
     await save(recipe);
+  };
+
+  /** Saving a pasted batch. Sequential rather than parallel: on failure it
+   *  stops where it stopped, and reporting "4 of 9 saved" is only honest if
+   *  the other five definitely weren't attempted. */
+  const saveMany = async (list: Recipe[]) => {
+    retry.current = () => void saveMany(list);
+    const key = catalogKey.trim() || readStoredKey();
+
+    if (!key) {
+      setNeedsKey(true);
+      return;
+    }
+
+    setSaving(true);
+    let done = 0;
+    let failure: string | null = null;
+
+    for (const recipe of list) {
+      const result = await saveRecipe(recipe, key);
+      if (!result.ok) {
+        failure = result.error;
+        break;
+      }
+      done += 1;
+    }
+    setSaving(false);
+
+    if (done > 0) {
+      localStorage.setItem(CATALOG_KEY_STORAGE, key);
+      setNeedsKey(false);
+      refresh();
+    }
+
+    if (failure) {
+      if (/wrong key/i.test(failure)) {
+        localStorage.removeItem(CATALOG_KEY_STORAGE);
+        setNeedsKey(true);
+      }
+      toast.error(
+        done === 0
+          ? failure
+          : `Saved ${done} of ${list.length}, then stopped: ${failure}`,
+      );
+      return;
+    }
+
+    toast.success(`${done} recipe${done === 1 ? "" : "s"} in the catalog.`);
   };
 
   /** Drops parsed text into the form fields, then switches to the form so it
@@ -290,7 +340,7 @@ export function AddRecipePage() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    toast.success("Downloaded updated recipes.json");
+    toast.success("Downloaded a backup of every recipe");
   };
 
   return (
@@ -301,12 +351,9 @@ export function AddRecipePage() {
 
       <h1 className="display text-[30px] leading-none font-semibold">Add a recipe</h1>
       <p className="mt-3 max-w-[60ch] text-[14px] text-muted-foreground">
-        This page doesn't save anything by itself — it builds the JSON. You'll
-        put the result in{" "}
-        <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[13px]">
-          public/data/recipes.json
-        </code>{" "}
-        and commit it.
+        Four ways in: type it, paste a link, paste the text, or paste JSON.
+        They all land in this form first, and <strong>Save to catalog</strong>{" "}
+        puts it in the drawer straight away.
       </p>
 
       <div className="mt-6">
@@ -337,7 +384,7 @@ export function AddRecipePage() {
               value={catalogKey}
               onChange={setCatalogKey}
               saving={saving}
-              onRetry={() => lastParsed.current && saveParsed(lastParsed.current)}
+              onRetry={() => retry.current?.()}
             />
           )}
         </div>
@@ -346,8 +393,16 @@ export function AddRecipePage() {
           <PasteText onUse={useParsed} />
         </div>
       ) : tab === "json" ? (
-        <div className="mt-6">
-          <PasteRecipes existing={recipes} />
+        <div className="mt-6 flex flex-col gap-5">
+          <PasteRecipes existing={recipes} onSave={saveMany} saving={saving} />
+          {needsKey && (
+            <CatalogKeyPrompt
+              value={catalogKey}
+              onChange={setCatalogKey}
+              saving={saving}
+              onRetry={() => retry.current?.()}
+            />
+          )}
         </div>
       ) : (
       <>
@@ -619,8 +674,8 @@ export function AddRecipePage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Clear everything in this form?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Anything you've typed will be lost. Generated JSON you've already
-                  copied is unaffected.
+                  Anything you've typed will be lost. Recipes already saved to
+                  the catalog are unaffected.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -645,12 +700,7 @@ export function AddRecipePage() {
         <div className="mt-8 rounded-lg border border-status/40 bg-status/5 p-5">
           <h2 className="display text-xl font-semibold">Saved to the catalog</h2>
           <p className="mt-2 text-[14px] text-muted-foreground">
-            "{saved.title}" is live now — no commit needed. It lives in the
-            recipe store rather than in{" "}
-            <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[13px]">
-              public/data/recipes.json
-            </code>
-            , so generate the JSON below as well if you want it in git.
+            "{saved.title}" is in the drawer now.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button asChild>
@@ -665,16 +715,13 @@ export function AddRecipePage() {
 
       {generated && (
         <div ref={outputRef} className="mt-10 rounded-lg border border-border bg-card p-5">
-          <h2 className="display text-xl font-semibold">
-            Add this to{" "}
-            <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[13px]">
-              public/data/recipes.json
-            </code>
-          </h2>
+          <h2 className="display text-xl font-semibold">This recipe as JSON</h2>
           <p className="mt-2 text-[13px] text-muted-foreground">
-            {recipes.length
-              ? `Loaded ${recipes.length} existing recipe${recipes.length === 1 ? "" : "s"} — the download bundles this one in with all of them.`
-              : "Couldn't load the current recipes.json, so the download will contain just this recipe."}
+            Saving to the catalog doesn't need any of this — it's here for
+            keeping a copy, moving a recipe elsewhere, or pasting into the
+            Paste JSON tab on another catalog.
+            {recipes.length > 0 &&
+              ` The backup below bundles it with all ${recipes.length} saved recipe${recipes.length === 1 ? "" : "s"}.`}
           </p>
           <pre className="mt-4 max-h-96 overflow-auto rounded-md border border-border bg-background p-4 font-mono text-[12px] leading-relaxed">
             {JSON.stringify(generated, null, 2)}
@@ -686,7 +733,7 @@ export function AddRecipePage() {
             </Button>
             <Button variant="outline" onClick={downloadFull}>
               <DownloadIcon />
-              Download full recipes.json
+              Download a backup
             </Button>
           </div>
         </div>

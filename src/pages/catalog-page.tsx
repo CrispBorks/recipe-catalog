@@ -1,5 +1,6 @@
 import * as React from "react";
 import { ArrowUpDownIcon, SearchIcon, XIcon } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -173,6 +174,20 @@ export function CatalogPage() {
         </p>
       ) : loading ? (
         <CardGridSkeleton />
+      ) : recipes.length === 0 ? (
+        // An empty catalog is the ordinary starting state now that nothing is
+        // shipped with the build, so it gets a way forward rather than the
+        // "nothing matches" line, which would read as a failed search.
+        <div className="rounded-md border border-dashed border-border p-8 text-center">
+          <p className="display text-lg font-semibold">The drawer is empty</p>
+          <p className="mx-auto mt-2 max-w-[42ch] text-[15px] text-muted-foreground">
+            Add a recipe by pasting a link to one, pasting the text, or typing
+            it in.
+          </p>
+          <Button asChild className="mt-5">
+            <Link to="/add-recipe">Add the first recipe</Link>
+          </Button>
+        </div>
       ) : results.length === 0 ? (
         <p className="rounded-md border border-dashed border-border p-8 text-center text-[15px] text-muted-foreground">
           Nothing in the drawer matches that search.

@@ -17,7 +17,7 @@ export type ParseOutcome =
 /** Where a batch is going: appended to the current file, or replacing it
  *  wholesale. It changes what counts as a duplicate — pasting the whole file
  *  back after editing shouldn't flag every recipe in it. */
-export type PasteMode = "append" | "replace";
+export type PasteMode = "append" | "update";
 
 const KNOWN_KEYS = new Set([
   "id",
@@ -234,8 +234,8 @@ export function parseAndReview(
 
   const items = list.map(reviewOne);
 
-  // Duplicates: always within the batch, and against the current file only when
-  // appending — a replacement batch is allowed to contain the same ids.
+  // Duplicates: always within the batch, and against the catalog only when
+  // adding new ones — an update batch is meant to carry ids that already exist.
   const seen = new Map<string, number>();
   const existing = new Set(existingIds);
 
@@ -257,7 +257,7 @@ export function parseAndReview(
     if (mode === "append" && existing.has(id)) {
       item.issues.push({
         level: "error",
-        message: `\`id\` "${id}" already exists in the catalog. Rename it, or switch to Replace.`,
+        message: `\`id\` "${id}" already exists in the catalog. Rename it, or switch to "Update existing".`,
       });
       item.recipe = null;
     }
@@ -269,7 +269,9 @@ export function parseAndReview(
 export const countErrors = (items: ReviewedRecipe[]) =>
   items.filter((item) => item.issues.some((i) => i.level === "error")).length;
 
-/** The file the paste would produce, ready to download or copy. */
+/** The whole catalog as it would stand after the paste — what the backup
+ *  download and the copy button hand you. An update batch replaces matching
+ *  ids in place rather than becoming the entire catalog on its own. */
 export function buildFile(
   existing: Recipe[],
   items: ReviewedRecipe[],
@@ -278,5 +280,12 @@ export function buildFile(
   const incoming = items
     .map((item) => item.recipe)
     .filter((recipe): recipe is Recipe => recipe !== null);
-  return mode === "append" ? [...existing, ...incoming] : incoming;
+
+  if (mode === "append") return [...existing, ...incoming];
+
+  const byId = new Map(incoming.map((recipe) => [recipe.id, recipe]));
+  const updated = existing.map((recipe) => byId.get(recipe.id) ?? recipe);
+  const existingIds = new Set(existing.map((recipe) => recipe.id));
+
+  return [...updated, ...incoming.filter((recipe) => !existingIds.has(recipe.id))];
 }

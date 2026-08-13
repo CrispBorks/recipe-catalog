@@ -1,9 +1,11 @@
 import * as React from "react";
 import {
   AlertTriangleIcon,
+  BookmarkIcon,
   CheckIcon,
   CopyIcon,
   DownloadIcon,
+  Loader2Icon,
   XCircleIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -37,7 +39,15 @@ const SAMPLE = `[
   }
 ]`;
 
-export function PasteRecipes({ existing }: { existing: Recipe[] }) {
+export function PasteRecipes({
+  existing,
+  onSave,
+  saving,
+}: {
+  existing: Recipe[];
+  onSave: (recipes: Recipe[]) => void;
+  saving: boolean;
+}) {
   const [text, setText] = React.useState("");
   const [mode, setMode] = React.useState<PasteMode>("append");
 
@@ -56,7 +66,7 @@ export function PasteRecipes({ existing }: { existing: Recipe[] }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(JSON.stringify(resultFile, null, 2));
-      toast.success("Full recipes.json copied");
+      toast.success("Copied every recipe as JSON");
     } catch {
       toast.error("Couldn't copy — download it instead");
     }
@@ -74,15 +84,15 @@ export function PasteRecipes({ existing }: { existing: Recipe[] }) {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    toast.success("Downloaded recipes.json");
+    toast.success("Downloaded a backup of every recipe");
   };
 
   return (
     <div className="flex flex-col gap-5">
       <p className="max-w-[62ch] text-[14px] text-muted-foreground">
         Paste a single recipe or a whole list. Everything is checked as you
-        type — bad JSON, missing fields and clashing slugs are caught here
-        rather than after you've deployed.
+        type — bad JSON, missing fields and clashing slugs are caught before
+        anything reaches the catalog.
       </p>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -91,8 +101,8 @@ export function PasteRecipes({ existing }: { existing: Recipe[] }) {
           value={mode}
           onChange={setMode}
           options={[
-            { value: "append", label: "Add to catalog" },
-            { value: "replace", label: "Replace file" },
+            { value: "append", label: "Add new" },
+            { value: "update", label: "Update existing" },
           ]}
         />
         <Button
@@ -209,26 +219,31 @@ export function PasteRecipes({ existing }: { existing: Recipe[] }) {
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={download} disabled={!canExport}>
+            <Button
+              disabled={!canExport || saving}
+              onClick={() => onSave(ready.map((item) => item.recipe!))}
+            >
+              {saving ? <Loader2Icon className="animate-spin" /> : <BookmarkIcon />}
+              {saving
+                ? "Saving…"
+                : `Save ${ready.length} to the catalog`}
+            </Button>
+            {/* Still worth keeping now that the catalog lives in a database:
+                this is the only way to take a copy of it. */}
+            <Button variant="outline" onClick={download} disabled={!canExport}>
               <DownloadIcon />
-              Download recipes.json
+              Download a backup
             </Button>
-            <Button variant="outline" onClick={copy} disabled={!canExport}>
+            <Button variant="ghost" onClick={copy} disabled={!canExport}>
               <CopyIcon />
-              Copy full file
+              Copy all
             </Button>
-            {canExport && (
-              <span className="meta-mono text-muted-foreground">
-                {resultFile.length} recipe{resultFile.length === 1 ? "" : "s"} in the
-                file
-              </span>
-            )}
           </div>
 
           {errorCount > 0 && (
             <p className="text-[13px] text-muted-foreground">
               Fix the {errorCount} flagged entr{errorCount === 1 ? "y" : "ies"} before
-              exporting — a broken recipe takes the whole catalog down with it.
+              saving — nothing is written until every entry is valid.
             </p>
           )}
         </>
