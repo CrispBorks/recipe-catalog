@@ -39,10 +39,34 @@ type Res = {
   setHeader: (name: string, value: string) => void;
 };
 
-/** Vercel's Neon integration sets DATABASE_URL; a project carried over from
- *  the old Vercel Postgres has POSTGRES_URL instead. */
-const connectionString =
-  process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? "";
+/** Vercel's Neon integration sets DATABASE_URL by default, but the connection
+ *  dialog offers a custom prefix, and a project carried over from the old
+ *  Vercel Postgres has POSTGRES_URL. Rather than depend on one spelling, take
+ *  the first that looks like a Postgres connection string. */
+const CONNECTION_VARS = [
+  "DATABASE_URL",
+  "POSTGRES_URL",
+  "STORAGE_URL",
+  "DATABASE_URL_UNPOOLED",
+  "POSTGRES_URL_NON_POOLING",
+];
+
+const isPostgresUrl = (value: string | undefined) =>
+  typeof value === "string" && /^postgres(ql)?:\/\//i.test(value);
+
+function findConnectionString(): string {
+  for (const name of CONNECTION_VARS) {
+    if (isPostgresUrl(process.env[name])) return process.env[name] as string;
+  }
+  // A custom prefix produces something like MYPREFIX_URL, so fall back to any
+  // variable at all whose value is a Postgres URL.
+  for (const [name, value] of Object.entries(process.env)) {
+    if (name.endsWith("_URL") && isPostgresUrl(value)) return value as string;
+  }
+  return "";
+}
+
+const connectionString = findConnectionString();
 
 /** Created on first use rather than through a migration tool. There is one
  *  table and it is additive-only, so a migration step would be more machinery
@@ -130,9 +154,16 @@ export default async function handler(req: Req, res: Res) {
   res.setHeader("Cache-Control", "no-store");
 
   if (!connectionString) {
+    // Listing the names (never the values) turns "it doesn't work" into an
+    // answer: either the integration isn't connected, or it named the variable
+    // something this doesn't recognise.
+    const candidates = Object.keys(process.env)
+      .filter((name) => /url|postgres|database|neon/i.test(name))
+      .sort();
     res.status(503).json({
-      error:
-        "No database is connected to this deployment — DATABASE_URL isn't set.",
+      error: "No database is connected to this deployment.",
+      lookedFor: CONNECTION_VARS,
+      environmentVariablesPresent: candidates,
     });
     return;
   }
