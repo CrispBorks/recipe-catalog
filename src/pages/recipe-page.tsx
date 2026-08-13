@@ -2,27 +2,49 @@ import * as React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   CheckIcon,
+  Loader2Icon,
   MinusIcon,
   PlusIcon,
   PrinterIcon,
   Share2Icon,
+  Trash2Icon,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackLink, PageShell, SiteFooter } from "@/components/page-shell";
+import { CatalogKeyPrompt } from "@/components/catalog-key-prompt";
 import { SegmentedControl } from "@/components/segmented-control";
 import { useRecipes } from "@/hooks/use-recipes";
 import {
+  deleteRecipe,
   extractYouTubeId,
   formatQty,
   scaleIngredient,
   splitOnUrls,
   type Ingredient,
+  type Recipe,
 } from "@/lib/recipes";
+import {
+  forgetCatalogKey,
+  isWrongKey,
+  readCatalogKey,
+  rememberCatalogKey,
+} from "@/lib/catalog-key";
 import { addIngredients } from "@/lib/shopping-list";
 import { convertIngredient, formatAmount, useUnitSystem } from "@/lib/units";
 import { cn } from "@/lib/utils";
@@ -374,8 +396,94 @@ export function RecipePage() {
         </section>
       )}
 
+      <DangerZone recipe={recipe} />
+
       <SiteFooter />
     </PageShell>
+  );
+}
+
+/** Last thing on the page, after the method and the notes — you should have to
+ *  travel to reach it, and never meet it on the way to something else. */
+function DangerZone({ recipe }: { recipe: Recipe }) {
+  const navigate = useNavigate();
+  const { refresh } = useRecipes();
+  const [catalogKey, setCatalogKey] = React.useState(readCatalogKey);
+  const [needsKey, setNeedsKey] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+
+  const remove = async () => {
+    const key = catalogKey.trim() || readCatalogKey();
+    if (!key) {
+      setNeedsKey(true);
+      return;
+    }
+
+    setDeleting(true);
+    const result = await deleteRecipe(recipe.id, key);
+    setDeleting(false);
+
+    if (!result.ok) {
+      if (isWrongKey(result.error)) {
+        forgetCatalogKey();
+        setNeedsKey(true);
+      }
+      toast.error(result.error);
+      return;
+    }
+
+    rememberCatalogKey(key);
+    refresh();
+    // Leaving first: staying would render the "not in the drawer" fallback for
+    // the recipe just deleted, which reads like something went wrong.
+    navigate("/");
+    toast.success(`"${recipe.title}" deleted.`);
+  };
+
+  return (
+    <section className="mt-16 border-t border-destructive/30 pt-6">
+      <h2 className="label-mono text-muted-foreground">Danger zone</h2>
+
+      <div className="mt-4 flex flex-col gap-3">
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" className="w-fit" disabled={deleting}>
+              {deleting ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
+              {deleting ? "Deleting…" : "Delete recipe"}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete "{recipe.title}"?</AlertDialogTitle>
+              <AlertDialogDescription>
+                It's removed from the catalog on every device, and there's no
+                undo. Anything from this recipe already in your shopping list
+                stays there.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep it</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={remove}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                Delete it
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {needsKey && (
+          <CatalogKeyPrompt
+            value={catalogKey}
+            onChange={setCatalogKey}
+            busy={deleting}
+            onSubmit={remove}
+            action="Delete"
+          />
+        )}
+      </div>
+    </section>
   );
 }
 
