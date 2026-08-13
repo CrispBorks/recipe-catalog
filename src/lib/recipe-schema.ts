@@ -269,23 +269,3 @@ export function parseAndReview(
 export const countErrors = (items: ReviewedRecipe[]) =>
   items.filter((item) => item.issues.some((i) => i.level === "error")).length;
 
-/** The whole catalog as it would stand after the paste — what the backup
- *  download and the copy button hand you. An update batch replaces matching
- *  ids in place rather than becoming the entire catalog on its own. */
-export function buildFile(
-  existing: Recipe[],
-  items: ReviewedRecipe[],
-  mode: PasteMode,
-): Recipe[] {
-  const incoming = items
-    .map((item) => item.recipe)
-    .filter((recipe): recipe is Recipe => recipe !== null);
-
-  if (mode === "append") return [...existing, ...incoming];
-
-  const byId = new Map(incoming.map((recipe) => [recipe.id, recipe]));
-  const updated = existing.map((recipe) => byId.get(recipe.id) ?? recipe);
-  const existingIds = new Set(existing.map((recipe) => recipe.id));
-
-  return [...updated, ...incoming.filter((recipe) => !existingIds.has(recipe.id))];
-}

@@ -3,12 +3,9 @@ import {
   AlertTriangleIcon,
   BookmarkIcon,
   CheckIcon,
-  CopyIcon,
-  DownloadIcon,
   Loader2Icon,
   XCircleIcon,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +13,6 @@ import { RecipeCard } from "@/components/recipe-card";
 import { SegmentedControl } from "@/components/segmented-control";
 import type { Recipe } from "@/lib/recipes";
 import {
-  buildFile,
   countErrors,
   parseAndReview,
   type PasteMode,
@@ -60,32 +56,8 @@ export function PasteRecipes({
   const items = outcome.ok ? outcome.items : [];
   const errorCount = countErrors(items);
   const ready = items.filter((item) => item.recipe !== null);
-  const resultFile = outcome.ok ? buildFile(existing, items, mode) : [];
-  const canExport = outcome.ok && errorCount === 0 && ready.length > 0;
+  const canSave = outcome.ok && errorCount === 0 && ready.length > 0;
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(resultFile, null, 2));
-      toast.success("Copied every recipe as JSON");
-    } catch {
-      toast.error("Couldn't copy — download it instead");
-    }
-  };
-
-  const download = () => {
-    const blob = new Blob([JSON.stringify(resultFile, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "recipes.json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    toast.success("Downloaded a backup of every recipe");
-  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -149,6 +121,7 @@ export function PasteRecipes({
 
       {outcome.ok && (
         <>
+          {(items.length > 1 || errorCount > 0) && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <p className="meta-mono">
               {items.length} entr{items.length === 1 ? "y" : "ies"} ·{" "}
@@ -160,9 +133,10 @@ export function PasteRecipes({
               )}
             </p>
           </div>
+          )}
 
           <ul className="flex flex-col gap-2">
-            {items.map((item) => {
+            {items.filter((item) => item.issues.length > 0).map((item) => {
               const failed = item.recipe === null;
               return (
                 <li
@@ -220,23 +194,11 @@ export function PasteRecipes({
 
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              disabled={!canExport || saving}
+              disabled={!canSave || saving}
               onClick={() => onSave(ready.map((item) => item.recipe!))}
             >
               {saving ? <Loader2Icon className="animate-spin" /> : <BookmarkIcon />}
-              {saving
-                ? "Saving…"
-                : `Save ${ready.length} to the catalog`}
-            </Button>
-            {/* Still worth keeping now that the catalog lives in a database:
-                this is the only way to take a copy of it. */}
-            <Button variant="outline" onClick={download} disabled={!canExport}>
-              <DownloadIcon />
-              Download a backup
-            </Button>
-            <Button variant="ghost" onClick={copy} disabled={!canExport}>
-              <CopyIcon />
-              Copy all
+              {saving ? "Saving…" : `Save ${ready.length} to the catalog`}
             </Button>
           </div>
 
@@ -246,8 +208,10 @@ export function PasteRecipes({
               saving — nothing is written until every entry is valid.
             </p>
           )}
+
         </>
       )}
+
     </div>
   );
 }
