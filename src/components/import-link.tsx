@@ -1,5 +1,6 @@
 import * as React from "react";
-import { LinkIcon, Loader2Icon, WandIcon } from "lucide-react";
+import { BookmarkIcon, LinkIcon, Loader2Icon, WandIcon } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,19 @@ type State =
   | { status: "done"; recipe: ImportedRecipe }
   | { status: "error"; message: string };
 
-export function ImportLink({ onUse }: { onUse: (parsed: ParsedRecipe) => void }) {
+export function ImportLink({
+  onUse,
+  onSave,
+  saving,
+  saved,
+}: {
+  onUse: (parsed: ParsedRecipe) => void;
+  onSave: (parsed: ParsedRecipe) => void;
+  saving: boolean;
+  /** Set once a save lands, so the tab can confirm without sending you to the
+   *  form to find out whether it worked. */
+  saved: { id: string; title: string } | null;
+}) {
   const [url, setUrl] = React.useState("");
   const [state, setState] = React.useState<State>({ status: "idle" });
 
@@ -131,9 +144,16 @@ export function ImportLink({ onUse }: { onUse: (parsed: ParsedRecipe) => void })
           </ParsedPreview>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => onUse(state.recipe)}>
+            <Button
+              disabled={saving || state.recipe.title.trim() === ""}
+              onClick={() => onSave(state.recipe)}
+            >
+              {saving ? <Loader2Icon className="animate-spin" /> : <BookmarkIcon />}
+              {saving ? "Saving…" : "Save to catalog"}
+            </Button>
+            <Button variant="outline" onClick={() => onUse(state.recipe)}>
               <WandIcon />
-              Fill in the form
+              Edit first
             </Button>
             <Button
               variant="ghost"
@@ -145,6 +165,16 @@ export function ImportLink({ onUse }: { onUse: (parsed: ParsedRecipe) => void })
               Clear
             </Button>
           </div>
+
+          {saved && (
+            <p className="rounded-md border border-status/40 bg-status/5 p-3 text-[14px]">
+              "{saved.title}" is in the catalog.{" "}
+              <Link to={`/recipe/${saved.id}`} className="underline underline-offset-2">
+                Open it
+              </Link>
+              .
+            </p>
+          )}
         </>
       )}
     </div>

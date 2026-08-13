@@ -91,6 +91,7 @@ export function AddRecipePage() {
   const [generated, setGenerated] = React.useState<Recipe | null>(null);
   const idTouched = React.useRef(false);
   const outputRef = React.useRef<HTMLDivElement>(null);
+  const lastParsed = React.useRef<ParsedRecipe | null>(null);
 
   const form = useForm<FormValues>({ defaultValues: EMPTY, mode: "onSubmit" });
   const { register, handleSubmit, watch, setValue, reset, formState } = form;
@@ -170,8 +171,7 @@ export function AddRecipePage() {
   };
 
   /** Saves straight to the catalog, so the recipe is there without a commit. */
-  const onSave = async (values: FormValues) => {
-    const recipe = buildRecipe(values);
+  const save = async (recipe: Recipe) => {
     const key = catalogKey.trim() || readStoredKey();
 
     if (!key) {
@@ -199,6 +199,40 @@ export function AddRecipePage() {
     setSaved(recipe);
     refresh();
     toast.success(`"${recipe.title}" is in the catalog.`);
+  };
+
+  const onSave = (values: FormValues) => save(buildRecipe(values));
+
+  /** Saves a parsed recipe without a trip through the form. The preview above
+   *  the button has already shown exactly what will be saved, and anything
+   *  wrong can be fixed by re-saving the same id from the form afterwards. */
+  const saveParsed = async (parsed: ParsedRecipe) => {
+    lastParsed.current = parsed;
+    const recipe: Recipe = {
+      id: slugify(parsed.title),
+      title: parsed.title.trim(),
+      ...(parsed.tags.length ? { tags: parsed.tags } : {}),
+      ...(parsed.time ? { time: Number(parsed.time) } : {}),
+      ...(parsed.servings ? { servings: Number(parsed.servings) } : {}),
+    };
+
+    const ingredients = parsed.ingredients
+      .filter((row) => row.name.trim())
+      .map((row) => ({
+        qty:
+          row.qty.trim() === ""
+            ? ""
+            : Number.isFinite(Number(row.qty))
+              ? Number(row.qty)
+              : row.qty.trim(),
+        unit: row.unit.trim(),
+        name: row.name.trim(),
+      }));
+    if (ingredients.length) recipe.ingredients = ingredients;
+    if (parsed.steps.length) recipe.steps = parsed.steps;
+    if (parsed.notes.length) recipe.notes = parsed.notes;
+
+    await save(recipe);
   };
 
   /** Drops parsed text into the form fields, then switches to the form so it
@@ -291,8 +325,21 @@ export function AddRecipePage() {
       </div>
 
       {tab === "link" ? (
-        <div className="mt-6">
-          <ImportLink onUse={useParsed} />
+        <div className="mt-6 flex flex-col gap-5">
+          <ImportLink
+            onUse={useParsed}
+            onSave={saveParsed}
+            saving={saving}
+            saved={saved}
+          />
+          {needsKey && (
+            <CatalogKeyPrompt
+              value={catalogKey}
+              onChange={setCatalogKey}
+              saving={saving}
+              onRetry={() => lastParsed.current && saveParsed(lastParsed.current)}
+            />
+          )}
         </div>
       ) : tab === "text" ? (
         <div className="mt-6">
@@ -585,35 +632,12 @@ export function AddRecipePage() {
         </div>
 
         {needsKey && (
-          <div className="mt-4 rounded-md border border-border bg-card p-4">
-            <Label htmlFor="catalog-key" className="label-mono text-muted-foreground">
-              Catalog key
-            </Label>
-            <p className="mt-2 max-w-[56ch] text-[13px] text-muted-foreground">
-              Saving needs the key set in the deployment's{" "}
-              <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[12px]">
-                CATALOG_WRITE_KEY
-              </code>
-              . It's asked for once and remembered on this device.
-            </p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <Input
-                id="catalog-key"
-                type="password"
-                autoComplete="off"
-                value={catalogKey}
-                onChange={(e) => setCatalogKey(e.target.value)}
-                className="sm:flex-1"
-              />
-              <Button
-                type="button"
-                disabled={catalogKey.trim() === "" || saving}
-                onClick={handleSubmit(onSave)}
-              >
-                Save
-              </Button>
-            </div>
-          </div>
+          <CatalogKeyPrompt
+            value={catalogKey}
+            onChange={setCatalogKey}
+            saving={saving}
+            onRetry={handleSubmit(onSave)}
+          />
         )}
       </form>
 
@@ -720,6 +744,48 @@ function Field({
         <span className="text-[12px] text-muted-foreground">{hint}</span>
       )}
       {error && <span className="text-[12px] text-destructive">{error}</span>}
+    </div>
+  );
+}
+
+/** Asked for once per device, then kept in localStorage. Rendered wherever a
+ *  save can start from, so the tab you're on is the tab that asks. */
+function CatalogKeyPrompt({
+  value,
+  onChange,
+  saving,
+  onRetry,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  saving: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-card p-4">
+      <Label htmlFor="catalog-key" className="label-mono text-muted-foreground">
+        Catalog key
+      </Label>
+      <p className="mt-2 max-w-[56ch] text-[13px] text-muted-foreground">
+        Saving needs the key set in the deployment's{" "}
+        <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[12px]">
+          CATALOG_WRITE_KEY
+        </code>
+        . It's asked for once and remembered on this device.
+      </p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <Input
+          id="catalog-key"
+          type="password"
+          autoComplete="off"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="sm:flex-1"
+        />
+        <Button type="button" disabled={value.trim() === "" || saving} onClick={onRetry}>
+          Save
+        </Button>
+      </div>
     </div>
   );
 }
