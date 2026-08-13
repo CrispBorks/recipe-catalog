@@ -15,10 +15,64 @@ export type Recipe = {
   notes?: string[];
 };
 
-export async function fetchRecipes(): Promise<Recipe[]> {
+/** The recipes that ship with the build. */
+async function fetchShipped(): Promise<Recipe[]> {
   const res = await fetch("/data/recipes.json");
   if (!res.ok) throw new Error(`Couldn't load recipes (${res.status})`);
   return (await res.json()) as Recipe[];
+}
+
+/** The recipes added from the app since. Deliberately forgiving: the store is
+ *  optional, so a deployment without one (or a request that fails) shows the
+ *  shipped recipes rather than an error page. */
+async function fetchStored(): Promise<Recipe[]> {
+  try {
+    const res = await fetch("/api/recipes", { headers: { accept: "application/json" } });
+    if (!res.ok) return [];
+    const body: unknown = await res.json();
+    const recipes = (body as { recipes?: unknown })?.recipes;
+    return Array.isArray(recipes) ? (recipes as Recipe[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchRecipes(): Promise<Recipe[]> {
+  const [shipped, stored] = await Promise.all([fetchShipped(), fetchStored()]);
+  if (stored.length === 0) return shipped;
+
+  // A stored recipe with the same id replaces the shipped one in place, so
+  // editing one of the originals doesn't move it to the end of the catalog.
+  const byId = new Map(stored.map((recipe) => [recipe.id, recipe]));
+  const merged = shipped.map((recipe) => byId.get(recipe.id) ?? recipe);
+  const shippedIds = new Set(shipped.map((recipe) => recipe.id));
+
+  return [...merged, ...stored.filter((recipe) => !shippedIds.has(recipe.id))];
+}
+
+export type SaveResult = { ok: true } | { ok: false; error: string };
+
+/** Saves a recipe to the store. The key is the one from CATALOG_WRITE_KEY;
+ *  it's kept in localStorage so it's asked for once per device. */
+export async function saveRecipe(recipe: Recipe, key: string): Promise<SaveResult> {
+  try {
+    const res = await fetch("/api/recipes", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-catalog-key": key },
+      body: JSON.stringify(recipe),
+    });
+    const text = await res.text();
+    let body: { error?: string } = {};
+    try {
+      body = JSON.parse(text);
+    } catch {
+      return { ok: false, error: `The catalog returned ${res.status}, not JSON.` };
+    }
+    if (!res.ok) return { ok: false, error: body.error ?? `Save failed (${res.status}).` };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Couldn't reach the catalog — you may be offline." };
+  }
 }
 
 const GLYPHS: Record<string, string> = {

@@ -46,6 +46,7 @@ shadcn's semantic names, so the look can be changed in one file.
 recipe-catalog/
 ├── index.html               # Vite entry
 ├── api/import.ts            # serverless: reads a recipe off a URL (no API key)
+├── api/recipes.ts           # serverless: recipes saved from the app
 ├── public/data/recipes.json # recipe data — edit or extend this
 ├── src/
 │   ├── App.tsx              # routes (incl. redirects for pre-rewrite URLs)
@@ -74,11 +75,26 @@ rewrites every path except `/api/*` to `index.html` so deep links like
 `/recipe/lemon-garlic-roast-chicken` resolve on a hard refresh — any host needs
 that same SPA fallback.
 
-The one server-side piece is `api/import.ts`, which fetches a recipe page and
-reads its schema.org JSON-LD. It exists only because a browser can't fetch
-another origin's HTML; there's no API key or paid service behind it. Under
-`npm run dev` that route isn't served — use `vercel dev` to exercise it
-locally, or just test it on a preview deployment.
+Two serverless functions live in `api/`. Neither route is served by `npm run
+dev` — use `vercel dev` to exercise them locally, or test on a preview
+deployment.
+
+`api/import.ts` fetches a recipe page and reads its schema.org JSON-LD. It
+exists only because a browser can't fetch another origin's HTML; there's no
+API key or paid service behind it, and it needs no configuration.
+
+`api/recipes.ts` stores recipes saved from the app. It needs two things set up
+once, both on Vercel's free tier:
+
+1. **A Blob store.** Vercel dashboard → Storage → create a Blob store and
+   connect it to the project. That sets `BLOB_READ_WRITE_TOKEN` for you.
+2. **`CATALOG_WRITE_KEY`** as an environment variable — any passphrase. Reads
+   are public like the rest of the site, but without this anyone who found the
+   URL could write to your catalog, so saving refuses to work until it's set.
+   The app asks for it once and remembers it per device.
+
+Skip both and everything else still works; the Save button just reports that
+saving isn't configured.
 
 **Send to Reminders** relies on `navigator.share`, which requires HTTPS.
 
@@ -95,7 +111,15 @@ file) to drop into `public/data/recipes.json`. Four ways in:
 | **Paste text** | A wall of recipe text | Heuristic — always check it in the form |
 | **Paste JSON** | One or more recipes already in this format | Validated, with per-recipe errors |
 
-All of them land in the form, so nothing is saved without a look first.
+All of them land in the form, so nothing is saved without a look first. From
+there, **Save to catalog** writes the recipe to the Blob store and it appears
+straight away; **Generate recipe JSON** gives you the block to commit into
+`public/data/recipes.json` instead.
+
+The two live side by side on purpose. Recipes in the JSON file are the ones in
+git — versioned, reviewable, and present in every deployment. Recipes in the
+store are the ones you added from your phone. The catalog merges them, and a
+stored recipe with the same id as a shipped one wins.
 
 To write one by hand:
 

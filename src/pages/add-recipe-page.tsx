@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useFieldArray, useForm } from "react-hook-form";
-import { CopyIcon, DownloadIcon, PlusIcon, XIcon } from "lucide-react";
+import { BookmarkIcon, CopyIcon, DownloadIcon, Loader2Icon, PlusIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -23,8 +23,9 @@ import { ImportLink } from "@/components/import-link";
 import { PasteRecipes } from "@/components/paste-recipes";
 import { PasteText } from "@/components/paste-text";
 import { SegmentedControl } from "@/components/segmented-control";
+import { Link } from "react-router-dom";
 import { useRecipes } from "@/hooks/use-recipes";
-import type { Recipe } from "@/lib/recipes";
+import { saveRecipe, type Recipe } from "@/lib/recipes";
 import type { ParsedRecipe } from "@/lib/parse-recipe-text";
 import { cn } from "@/lib/utils";
 
@@ -67,8 +68,22 @@ function slugify(text: string) {
     .replace(/^-|-$/g, "");
 }
 
+const CATALOG_KEY_STORAGE = "cardCatalog.writeKey.v1";
+
+const readStoredKey = () => {
+  try {
+    return localStorage.getItem(CATALOG_KEY_STORAGE) ?? "";
+  } catch {
+    return "";
+  }
+};
+
 export function AddRecipePage() {
-  const { recipes } = useRecipes();
+  const { recipes, refresh } = useRecipes();
+  const [catalogKey, setCatalogKey] = React.useState(readStoredKey);
+  const [needsKey, setNeedsKey] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [saved, setSaved] = React.useState<Recipe | null>(null);
   const [tags, setTags] = React.useState<string[]>([]);
   const [customTags, setCustomTags] = React.useState<string[]>([]);
   const [tab, setTab] = React.useState<"form" | "link" | "text" | "json">("form");
@@ -112,7 +127,7 @@ export function AddRecipePage() {
     setNewTag("");
   };
 
-  const onSubmit = (values: FormValues) => {
+  const buildRecipe = (values: FormValues): Recipe => {
     const recipe: Recipe = {
       id: values.id.trim(),
       title: values.title.trim(),
@@ -144,10 +159,46 @@ export function AddRecipePage() {
     const cleanedNotes = values.notes.map((n) => n.text.trim()).filter(Boolean);
     if (cleanedNotes.length) recipe.notes = cleanedNotes;
 
-    setGenerated(recipe);
+    return recipe;
+  };
+
+  const onGenerate = (values: FormValues) => {
+    setGenerated(buildRecipe(values));
     requestAnimationFrame(() =>
       outputRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
     );
+  };
+
+  /** Saves straight to the catalog, so the recipe is there without a commit. */
+  const onSave = async (values: FormValues) => {
+    const recipe = buildRecipe(values);
+    const key = catalogKey.trim() || readStoredKey();
+
+    if (!key) {
+      setNeedsKey(true);
+      return;
+    }
+
+    setSaving(true);
+    const result = await saveRecipe(recipe, key);
+    setSaving(false);
+
+    if (!result.ok) {
+      // A wrong key is the one failure worth asking about again; everything
+      // else is the store's problem, not something retyping will fix.
+      if (/wrong key/i.test(result.error)) {
+        localStorage.removeItem(CATALOG_KEY_STORAGE);
+        setNeedsKey(true);
+      }
+      toast.error(result.error);
+      return;
+    }
+
+    localStorage.setItem(CATALOG_KEY_STORAGE, key);
+    setNeedsKey(false);
+    setSaved(recipe);
+    refresh();
+    toast.success(`"${recipe.title}" is in the catalog.`);
   };
 
   /** Drops parsed text into the form fields, then switches to the form so it
@@ -253,7 +304,7 @@ export function AddRecipePage() {
         </div>
       ) : (
       <>
-      <form onSubmit={handleSubmit(onSubmit)} className="mt-8 flex flex-col gap-8">
+      <form onSubmit={handleSubmit(onGenerate)} className="mt-8 flex flex-col gap-8">
         <Section title="Recipe details">
           <div className="grid gap-4 sm:grid-cols-[2fr_1fr_1fr]">
             <Field label="Title" error={formState.errors.title?.message}>
@@ -504,7 +555,13 @@ export function AddRecipePage() {
         </Section>
 
         <div className="flex flex-wrap gap-2">
-          <Button type="submit">Generate recipe JSON</Button>
+          <Button type="button" disabled={saving} onClick={handleSubmit(onSave)}>
+            {saving ? <Loader2Icon className="animate-spin" /> : <BookmarkIcon />}
+            {saving ? "Saving…" : "Save to catalog"}
+          </Button>
+          <Button type="submit" variant="outline">
+            Generate recipe JSON
+          </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button type="button" variant="outline">
@@ -526,7 +583,61 @@ export function AddRecipePage() {
             </AlertDialogContent>
           </AlertDialog>
         </div>
+
+        {needsKey && (
+          <div className="mt-4 rounded-md border border-border bg-card p-4">
+            <Label htmlFor="catalog-key" className="label-mono text-muted-foreground">
+              Catalog key
+            </Label>
+            <p className="mt-2 max-w-[56ch] text-[13px] text-muted-foreground">
+              Saving needs the key set in the deployment's{" "}
+              <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[12px]">
+                CATALOG_WRITE_KEY
+              </code>
+              . It's asked for once and remembered on this device.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="catalog-key"
+                type="password"
+                autoComplete="off"
+                value={catalogKey}
+                onChange={(e) => setCatalogKey(e.target.value)}
+                className="sm:flex-1"
+              />
+              <Button
+                type="button"
+                disabled={catalogKey.trim() === "" || saving}
+                onClick={handleSubmit(onSave)}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        )}
       </form>
+
+      {saved && (
+        <div className="mt-8 rounded-lg border border-status/40 bg-status/5 p-5">
+          <h2 className="display text-xl font-semibold">Saved to the catalog</h2>
+          <p className="mt-2 text-[14px] text-muted-foreground">
+            "{saved.title}" is live now — no commit needed. It lives in the
+            recipe store rather than in{" "}
+            <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[13px]">
+              public/data/recipes.json
+            </code>
+            , so generate the JSON below as well if you want it in git.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button asChild>
+              <Link to={`/recipe/${saved.id}`}>Open the recipe</Link>
+            </Button>
+            <Button variant="outline" onClick={() => { resetAll(); setSaved(null); }}>
+              Add another
+            </Button>
+          </div>
+        </div>
+      )}
 
       {generated && (
         <div ref={outputRef} className="mt-10 rounded-lg border border-border bg-card p-5">
