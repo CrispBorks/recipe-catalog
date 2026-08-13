@@ -20,9 +20,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BackLink, PageShell, SiteFooter } from "@/components/page-shell";
 import { PasteRecipes } from "@/components/paste-recipes";
+import { PasteText } from "@/components/paste-text";
 import { SegmentedControl } from "@/components/segmented-control";
 import { useRecipes } from "@/hooks/use-recipes";
 import type { Recipe } from "@/lib/recipes";
+import type { ParsedRecipe } from "@/lib/parse-recipe-text";
 import { cn } from "@/lib/utils";
 
 const KNOWN_TAGS = [
@@ -68,7 +70,7 @@ export function AddRecipePage() {
   const { recipes } = useRecipes();
   const [tags, setTags] = React.useState<string[]>([]);
   const [customTags, setCustomTags] = React.useState<string[]>([]);
-  const [tab, setTab] = React.useState<"form" | "paste">("form");
+  const [tab, setTab] = React.useState<"form" | "text" | "json">("form");
   const [newTag, setNewTag] = React.useState("");
   const [generated, setGenerated] = React.useState<Recipe | null>(null);
   const idTouched = React.useRef(false);
@@ -147,6 +149,30 @@ export function AddRecipePage() {
     );
   };
 
+  /** Drops parsed text into the form fields, then switches to the form so it
+   *  can be corrected before anything is generated. */
+  const useParsed = (parsed: ParsedRecipe) => {
+    reset({
+      title: parsed.title,
+      id: slugify(parsed.title),
+      time: parsed.time,
+      servings: parsed.servings,
+      ingredients: parsed.ingredients.length
+        ? parsed.ingredients
+        : EMPTY.ingredients,
+      steps: parsed.steps.length
+        ? parsed.steps.map((text) => ({ text }))
+        : EMPTY.steps,
+      notes: parsed.notes.map((text) => ({ text })),
+    });
+    setCustomTags((prev) => [...new Set([...prev, ...parsed.tags])]);
+    setTags(parsed.tags);
+    setGenerated(null);
+    idTouched.current = false;
+    setTab("form");
+    toast.success("Form filled in — check it over before generating.");
+  };
+
   const resetAll = () => {
     reset(EMPTY);
     setTags([]);
@@ -203,14 +229,19 @@ export function AddRecipePage() {
           value={tab}
           onChange={setTab}
           options={[
-            { value: "form", label: "Fill in a form" },
-            { value: "paste", label: "Paste JSON" },
+            { value: "form", label: "Form" },
+            { value: "text", label: "Paste text" },
+            { value: "json", label: "Paste JSON" },
           ]}
           className="w-fit"
         />
       </div>
 
-      {tab === "paste" ? (
+      {tab === "text" ? (
+        <div className="mt-6">
+          <PasteText onUse={useParsed} />
+        </div>
+      ) : tab === "json" ? (
         <div className="mt-6">
           <PasteRecipes existing={recipes} />
         </div>
