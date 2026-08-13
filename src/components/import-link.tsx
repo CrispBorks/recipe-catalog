@@ -7,6 +7,13 @@ import { ParsedPreview } from "@/components/parsed-preview";
 import type { ParsedRecipe } from "@/lib/parse-recipe-text";
 import type { ImportedRecipe } from "@/lib/recipe-jsonld";
 
+/** Enough of an HTML error page to recognise which one it is, without pasting
+ *  a whole document into the UI. */
+const firstLine = (text: string) => {
+  const title = text.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1];
+  return (title ?? text.replace(/<[^>]*>/g, " ").trim()).slice(0, 120);
+};
+
 type State =
   | { status: "idle" }
   | { status: "loading" }
@@ -22,23 +29,48 @@ export function ImportLink({ onUse }: { onUse: (parsed: ParsedRecipe) => void })
     if (trimmed === "") return;
 
     setState({ status: "loading" });
+
+    let response: Response;
     try {
-      const response = await fetch(`/api/import?url=${encodeURIComponent(trimmed)}`);
-      const body = await response.json();
-      if (!response.ok) {
-        setState({
-          status: "error",
-          message: body?.error ?? "That didn't work. Try pasting the recipe text instead.",
-        });
-        return;
-      }
-      setState({ status: "done", recipe: body as ImportedRecipe });
+      response = await fetch(`/api/import?url=${encodeURIComponent(trimmed)}`);
     } catch {
       setState({
         status: "error",
-        message: "Couldn't reach the importer. Check your connection and try again.",
+        message: "Couldn't reach the importer — you may be offline.",
       });
+      return;
     }
+
+    // Anything other than the function's own JSON means the request never got
+    // there: a 404 page, a platform error page, or the SPA's index.html. Saying
+    // so beats a generic "check your connection", which sends you looking in
+    // the wrong place entirely.
+    const text = await response.text();
+    let body: { error?: string } | ImportedRecipe;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      setState({
+        status: "error",
+        message:
+          response.status === 404
+            ? "The importer isn't deployed on this build (/api/import returned 404)."
+            : `The importer returned ${response.status} instead of a recipe. ${firstLine(text)}`,
+      });
+      return;
+    }
+
+    if (!response.ok) {
+      setState({
+        status: "error",
+        message:
+          ("error" in body && body.error) ||
+          `That didn't work (${response.status}). Try pasting the recipe text instead.`,
+      });
+      return;
+    }
+
+    setState({ status: "done", recipe: body as ImportedRecipe });
   };
 
   return (

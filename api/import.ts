@@ -6,7 +6,7 @@
  *  the <script type="application/ld+json"> block the site already publishes for
  *  Google, and maps the fields across. */
 
-import { findRecipeNode, recipeFromJsonLd } from "../src/lib/recipe-jsonld.ts";
+import { findRecipeNode, recipeFromJsonLd } from "../src/lib/recipe-jsonld";
 
 /** Enough of Vercel's Node request/response to type this handler without
  *  taking on @vercel/node as a dependency. */
