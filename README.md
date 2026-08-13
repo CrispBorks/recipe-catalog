@@ -22,9 +22,8 @@ ingredients straight to your shopping list — with a one-tap path into the iOS
   ingredients merge and add up their quantities automatically. Destructive
   edits are undoable.
 - **iOS Reminders integration** — send your list through the native Share
-  Sheet. Works immediately as a single reminder, or set up a 60-second
-  Shortcut (guide included) for one reminder per item. See
-  [`shortcuts/README.md`](shortcuts/README.md).
+  Sheet. Works immediately as a single reminder; an iOS Shortcut can split it
+  into one reminder per item.
 - **Persistent list** — saved in `localStorage`, so it survives a refresh,
   a closed tab, or another tab editing it.
 - **Light and dark** — follows the system by default, with a manual override.
@@ -54,7 +53,7 @@ recipe-catalog/
 │   ├── hooks/
 │   ├── lib/                 # recipe helpers + the shopping-list store
 │   └── pages/
-└── shortcuts/README.md      # iOS Reminders / Shortcuts setup guide
+└── tests/                   # unit tests, and browser suites in tests/browser
 ```
 
 ## Running locally
@@ -66,6 +65,27 @@ npm run dev      # http://localhost:5173
 
 Other scripts: `npm run build` (typechecks, then builds to `dist/`),
 `npm run preview` (serve the production build), `npm run typecheck`.
+
+## Tests
+
+```bash
+npm test           # unit tests, no browser needed (~0.3s)
+npm run test:browser   # builds, serves it, drives a real page
+```
+
+`npm test` covers the parsers and the pure helpers — the parts with enough edge
+cases to be worth pinning down. Nearly every case in
+`tests/parse-recipe-text.test.ts` is a line some recipe site actually publishes;
+when the parser trips on a new one, that's where the fix starts.
+
+The browser suites need Chromium once:
+
+```bash
+npx playwright install chromium
+```
+
+They intercept `/api/*` and serve fixtures, since `vite preview` doesn't run the
+serverless functions. Set `CHROMIUM_PATH` to use a Chromium you already have.
 
 ## Deploying
 

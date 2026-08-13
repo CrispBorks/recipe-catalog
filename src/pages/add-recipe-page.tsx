@@ -32,7 +32,7 @@ import {
   readCatalogKey,
   rememberCatalogKey,
 } from "@/lib/catalog-key";
-import { saveRecipe, type Recipe } from "@/lib/recipes";
+import { assembleRecipe, saveRecipe, type Recipe } from "@/lib/recipes";
 import type { ParsedRecipe } from "@/lib/parse-recipe-text";
 import { cn } from "@/lib/utils";
 
@@ -88,9 +88,12 @@ export function AddRecipePage() {
   const [generated, setGenerated] = React.useState<Recipe | null>(null);
   const idTouched = React.useRef(false);
   const outputRef = React.useRef<HTMLDivElement>(null);
-  /** What to do again once the key has been typed in. Every save sets it, so
-   *  the prompt can retry whichever one was interrupted. */
-  const retry = React.useRef<(() => void) | null>(null);
+  /** What to save again once the key has been typed in.
+   *
+   *  The recipes, not a closure over them: a closure captures the key state
+   *  from the render that created it, which is the render *before* the key was
+   *  typed, so retrying would never see it. */
+  const pending = React.useRef<Recipe[] | null>(null);
 
   const form = useForm<FormValues>({ defaultValues: EMPTY, mode: "onSubmit" });
   const { register, handleSubmit, watch, setValue, reset, formState } = form;
@@ -127,40 +130,17 @@ export function AddRecipePage() {
     setNewTag("");
   };
 
-  const buildRecipe = (values: FormValues): Recipe => {
-    const recipe: Recipe = {
-      id: values.id.trim(),
-      title: values.title.trim(),
-      ...(tags.length ? { tags } : {}),
-      ...(values.time.trim() ? { time: Number(values.time) } : {}),
-      ...(values.servings.trim() ? { servings: Number(values.servings) } : {}),
-    };
-
-    const cleanedIngredients = values.ingredients
-      .filter((row) => row.name.trim())
-      .map((row) => {
-        const qtyRaw = row.qty.trim();
-        return {
-          qty:
-            qtyRaw === ""
-              ? ""
-              : Number.isFinite(Number(qtyRaw))
-                ? Number(qtyRaw)
-                : qtyRaw,
-          unit: row.unit.trim(),
-          name: row.name.trim(),
-        };
-      });
-    if (cleanedIngredients.length) recipe.ingredients = cleanedIngredients;
-
-    const cleanedSteps = values.steps.map((s) => s.text.trim()).filter(Boolean);
-    if (cleanedSteps.length) recipe.steps = cleanedSteps;
-
-    const cleanedNotes = values.notes.map((n) => n.text.trim()).filter(Boolean);
-    if (cleanedNotes.length) recipe.notes = cleanedNotes;
-
-    return recipe;
-  };
+  const buildRecipe = (values: FormValues): Recipe =>
+    assembleRecipe({
+      id: values.id,
+      title: values.title,
+      time: values.time,
+      servings: values.servings,
+      tags,
+      ingredients: values.ingredients,
+      steps: values.steps.map((s) => s.text),
+      notes: values.notes.map((n) => n.text),
+    });
 
   const onGenerate = (values: FormValues) => {
     setGenerated(buildRecipe(values));
@@ -169,78 +149,18 @@ export function AddRecipePage() {
     );
   };
 
-  /** Saves straight to the catalog, so the recipe is there without a commit. */
-  const save = async (recipe: Recipe) => {
-    retry.current = () => void save(recipe);
+  /** The one write path. Everything that saves goes through here, whether it's
+   *  one recipe from the form or a pasted batch.
+   *
+   *  Sequential rather than parallel: on failure it stops where it stopped, and
+   *  reporting "4 of 9 saved" is only honest if the other five were never
+   *  attempted. */
+  const save = async (list: Recipe | Recipe[]) => {
+    const recipes = Array.isArray(list) ? list : [list];
+    if (recipes.length === 0) return;
+
+    pending.current = recipes;
     const key = catalogKey.trim() || readCatalogKey();
-
-    if (!key) {
-      setNeedsKey(true);
-      return;
-    }
-
-    setSaving(true);
-    const result = await saveRecipe(recipe, key);
-    setSaving(false);
-
-    if (!result.ok) {
-      // A wrong key is the one failure worth asking about again; everything
-      // else is the store's problem, not something retyping will fix.
-      if (isWrongKey(result.error)) {
-        forgetCatalogKey();
-        setNeedsKey(true);
-      }
-      toast.error(result.error);
-      return;
-    }
-
-    rememberCatalogKey(key);
-    setNeedsKey(false);
-    setSaved(recipe);
-    refresh();
-    toast.success(`"${recipe.title}" is in the catalog.`);
-  };
-
-  const onSave = (values: FormValues) => save(buildRecipe(values));
-
-  /** Saves a parsed recipe without a trip through the form. The preview above
-   *  the button has already shown exactly what will be saved, and anything
-   *  wrong can be fixed by re-saving the same id from the form afterwards. */
-  const saveParsed = async (parsed: ParsedRecipe) => {
-    const recipe: Recipe = {
-      id: slugify(parsed.title),
-      title: parsed.title.trim(),
-      ...(parsed.tags.length ? { tags: parsed.tags } : {}),
-      ...(parsed.time ? { time: Number(parsed.time) } : {}),
-      ...(parsed.servings ? { servings: Number(parsed.servings) } : {}),
-    };
-
-    const ingredients = parsed.ingredients
-      .filter((row) => row.name.trim())
-      .map((row) => ({
-        qty:
-          row.qty.trim() === ""
-            ? ""
-            : Number.isFinite(Number(row.qty))
-              ? Number(row.qty)
-              : row.qty.trim(),
-        unit: row.unit.trim(),
-        name: row.name.trim(),
-      }));
-    if (ingredients.length) recipe.ingredients = ingredients;
-    if (parsed.steps.length) recipe.steps = parsed.steps;
-    if (parsed.notes.length) recipe.notes = parsed.notes;
-
-    await save(recipe);
-  };
-
-  /** Saving a pasted batch. Sequential rather than parallel: on failure it
-   *  stops where it stopped, and reporting "4 of 9 saved" is only honest if
-   *  the other five definitely weren't attempted. */
-  const saveMany = async (list: Recipe[]) => {
-    retry.current = () => void saveMany(list);
-    const key = catalogKey.trim() || readCatalogKey();
-
     if (!key) {
       setNeedsKey(true);
       return;
@@ -249,8 +169,7 @@ export function AddRecipePage() {
     setSaving(true);
     let done = 0;
     let failure: string | null = null;
-
-    for (const recipe of list) {
+    for (const recipe of recipes) {
       const result = await saveRecipe(recipe, key);
       if (!result.ok) {
         failure = result.error;
@@ -263,24 +182,48 @@ export function AddRecipePage() {
     if (done > 0) {
       rememberCatalogKey(key);
       setNeedsKey(false);
+      setSaved(recipes[done - 1]);
       refresh();
     }
 
     if (failure) {
+      // A wrong key is the one failure worth asking about again; anything else
+      // is the server's problem, and retyping won't fix it.
       if (isWrongKey(failure)) {
         forgetCatalogKey();
         setNeedsKey(true);
       }
       toast.error(
-        done === 0
-          ? failure
-          : `Saved ${done} of ${list.length}, then stopped: ${failure}`,
+        done === 0 ? failure : `Saved ${done} of ${recipes.length}, then stopped: ${failure}`,
       );
       return;
     }
 
-    toast.success(`${done} recipe${done === 1 ? "" : "s"} in the catalog.`);
+    toast.success(
+      recipes.length === 1
+        ? `"${recipes[0].title}" is in the catalog.`
+        : `${done} recipes in the catalog.`,
+    );
   };
+
+  const onSave = (values: FormValues) => save(buildRecipe(values));
+
+  /** Saves a parsed recipe without a trip through the form. The preview above
+   *  the button has already shown exactly what will be saved, and anything
+   *  wrong can be fixed by re-saving the same id from the form afterwards. */
+  const saveParsed = (parsed: ParsedRecipe) =>
+    save(
+      assembleRecipe({
+        id: slugify(parsed.title),
+        title: parsed.title,
+        time: parsed.time,
+        servings: parsed.servings,
+        tags: parsed.tags,
+        ingredients: parsed.ingredients,
+        steps: parsed.steps,
+        notes: parsed.notes,
+      }),
+    );
 
   /** Drops parsed text into the form fields, then switches to the form so it
    *  can be corrected before anything is generated. */
@@ -381,7 +324,7 @@ export function AddRecipePage() {
               value={catalogKey}
               onChange={setCatalogKey}
               busy={saving}
-              onSubmit={() => retry.current?.()}
+              onSubmit={() => pending.current && void save(pending.current)}
             />
           )}
         </div>
@@ -391,13 +334,13 @@ export function AddRecipePage() {
         </div>
       ) : tab === "json" ? (
         <div className="mt-6 flex flex-col gap-5">
-          <PasteRecipes existing={recipes} onSave={saveMany} saving={saving} />
+          <PasteRecipes existing={recipes} onSave={save} saving={saving} />
           {needsKey && (
             <CatalogKeyPrompt
               value={catalogKey}
               onChange={setCatalogKey}
               busy={saving}
-              onSubmit={() => retry.current?.()}
+              onSubmit={() => pending.current && void save(pending.current)}
             />
           )}
         </div>
