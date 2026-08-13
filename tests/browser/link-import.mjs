@@ -26,7 +26,7 @@ ok('fetch disabled while empty', await page.getByRole('button',{name:/Fetch reci
 
 // segmented control must not overflow the 390px viewport
 const box = await page.locator('[role="group"][aria-label="How to add recipes"]').boundingBox();
-ok(`4 segments fit in 390px (right edge ${Math.round(box.x+box.width)})`, box.x+box.width <= 390);
+ok(`the mode control fits in 390px (right edge ${Math.round(box.x+box.width)})`, box.x+box.width <= 390);
 
 await page.getByLabel('Recipe page link').fill('https://example.com/banana');
 await page.getByRole('button',{name:/Fetch recipe/}).click();
@@ -36,9 +36,9 @@ ok('summary shown', /75 min/.test(body)&&/serves 12/.test(body)&&/2 ingredients/
 ok('credits the author', body.includes('By Jo Cook'));
 await page.screenshot({path: 'tests/browser/screenshots/link-preview.png'});
 
-await page.getByRole('button',{name:/Edit first/}).click();
+await page.getByRole('button',{name:/Review in the form/}).click();
 await page.waitForTimeout(400);
-ok('back on the form', await page.locator('form').count()===1);
+ok('the builder form is filled in', await page.getByLabel('ID (slug)').count()===1);
 ok(`title filled`, await page.getByLabel('Title').inputValue()==='Best Banana Bread');
 ok(`slug derived`, await page.getByLabel('ID (slug)').inputValue()==='best-banana-bread');
 ok(`time filled`, await page.getByLabel('Time (minutes)').inputValue()==='75');
@@ -47,10 +47,7 @@ ok('3 step rows', await page.getByRole('textbox',{name:/^Step \d+$/}).count()===
 ok('source url kept in notes', (await page.getByRole('textbox',{name:'Note 2',exact:true}).inputValue()).includes('example.com'));
 ok('tags pre-selected', await page.getByRole('button',{name:'banana',exact:true}).getAttribute('aria-pressed')==='true');
 
-await page.getByRole('button',{name:'Generate recipe JSON'}).click();
-await page.waitForSelector('pre');
-const r=JSON.parse(await page.locator('pre').textContent());
-ok('generates valid JSON', r.id==='best-banana-bread'&&r.time===75&&r.ingredients.length===2&&r.steps.length===3, JSON.stringify(r).slice(0,140));
+// saving from here is covered by link-save.mjs
 
 // error path
 await page.getByRole('button',{name:'Link',exact:true}).click();

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useFieldArray, useForm } from "react-hook-form";
-import { BookmarkIcon, CopyIcon, DownloadIcon, Loader2Icon, PlusIcon, XIcon } from "lucide-react";
+import { BookmarkIcon, Loader2Icon, PlusIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -20,9 +20,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BackLink, PageShell, SiteFooter } from "@/components/page-shell";
 import { CatalogKeyPrompt } from "@/components/catalog-key-prompt";
-import { ImportLink } from "@/components/import-link";
+import { ImportPanel } from "@/components/import-panel";
 import { PasteRecipes } from "@/components/paste-recipes";
-import { PasteText } from "@/components/paste-text";
 import { SegmentedControl } from "@/components/segmented-control";
 import { Link } from "react-router-dom";
 import { useRecipes } from "@/hooks/use-recipes";
@@ -77,11 +76,10 @@ export function AddRecipePage() {
   const [saved, setSaved] = React.useState<Recipe | null>(null);
   const [tags, setTags] = React.useState<string[]>([]);
   const [customTags, setCustomTags] = React.useState<string[]>([]);
-  const [tab, setTab] = React.useState<"form" | "link" | "text" | "json">("form");
+  const [tab, setTab] = React.useState<"build" | "json">("build");
   const [newTag, setNewTag] = React.useState("");
-  const [generated, setGenerated] = React.useState<Recipe | null>(null);
   const idTouched = React.useRef(false);
-  const outputRef = React.useRef<HTMLDivElement>(null);
+  const formRef = React.useRef<HTMLDivElement>(null);
   /** What to save again once the key has been typed in.
    *
    *  The recipes, not a closure over them: a closure captures the key state
@@ -136,12 +134,6 @@ export function AddRecipePage() {
       notes: values.notes.map((n) => n.text),
     });
 
-  const onGenerate = (values: FormValues) => {
-    setGenerated(buildRecipe(values));
-    requestAnimationFrame(() =>
-      outputRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-    );
-  };
 
   /** The one write path. Everything that saves goes through here, whether it's
    *  one recipe from the form or a pasted batch.
@@ -229,8 +221,8 @@ export function AddRecipePage() {
       }),
     );
 
-  /** Drops parsed text into the form fields, then switches to the form so it
-   *  can be corrected before anything is generated. */
+  /** Drops an imported recipe into the form fields and scrolls down to them,
+   *  for when the parse needs correcting before it's saved. */
   const useParsed = (parsed: ParsedRecipe) => {
     reset({
       title: parsed.title,
@@ -247,45 +239,21 @@ export function AddRecipePage() {
     });
     setCustomTags((prev) => [...new Set([...prev, ...parsed.tags])]);
     setTags(parsed.tags);
-    setGenerated(null);
     idTouched.current = false;
-    setTab("form");
-    toast.success("Form filled in — check it over before generating.");
+    requestAnimationFrame(() =>
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
+    toast.success("Filled in below — check it over, then save.");
   };
 
   const resetAll = () => {
     reset(EMPTY);
     setTags([]);
     setCustomTags([]);
-    setGenerated(null);
     idTouched.current = false;
   };
 
-  const copyJson = async () => {
-    if (!generated) return;
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(generated, null, 2));
-      toast.success("Recipe JSON copied");
-    } catch {
-      toast.error("Couldn't copy — select the text manually");
-    }
-  };
 
-  const downloadFull = () => {
-    if (!generated) return;
-    const blob = new Blob([JSON.stringify([...recipes, generated], null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "recipes.json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    toast.success("Downloaded a backup of every recipe");
-  };
 
   return (
     <PageShell>
@@ -295,9 +263,9 @@ export function AddRecipePage() {
 
       <h1 className="display text-[30px] leading-none font-semibold">Add a recipe</h1>
       <p className="mt-3 max-w-[60ch] text-[14px] text-muted-foreground">
-        Four ways in: type it, paste a link, paste the text, or paste JSON.
-        They all land in this form first, and <strong>Save to catalog</strong>{" "}
-        puts it in the drawer straight away.
+        Paste a recipe or a link to one and it'll be read for you, or fill the
+        form in yourself. Either way, <strong>Save to catalog</strong> puts it
+        in the drawer straight away.
       </p>
 
       <div className="mt-6">
@@ -306,37 +274,14 @@ export function AddRecipePage() {
           value={tab}
           onChange={setTab}
           options={[
-            { value: "form", label: "Form" },
-            { value: "link", label: "Link" },
-            { value: "text", label: "Paste text" },
+            { value: "build", label: "Build" },
             { value: "json", label: "Paste JSON" },
           ]}
           className="w-fit"
         />
       </div>
 
-      {tab === "link" ? (
-        <div className="mt-6 flex flex-col gap-5">
-          <ImportLink
-            onUse={useParsed}
-            onSave={saveParsed}
-            saving={saving}
-            saved={saved}
-          />
-          {needsKey && (
-            <CatalogKeyPrompt
-              value={catalogKey}
-              onChange={setCatalogKey}
-              busy={saving}
-              onSubmit={() => void submitKey()}
-            />
-          )}
-        </div>
-      ) : tab === "text" ? (
-        <div className="mt-6">
-          <PasteText onUse={useParsed} />
-        </div>
-      ) : tab === "json" ? (
+      {tab === "json" ? (
         <div className="mt-6 flex flex-col gap-5">
           <PasteRecipes existing={recipes} onSave={save} saving={saving} />
           {needsKey && (
@@ -350,7 +295,18 @@ export function AddRecipePage() {
         </div>
       ) : (
       <>
-      <form onSubmit={handleSubmit(onGenerate)} className="mt-8 flex flex-col gap-8">
+        <div className="mt-6">
+          <ImportPanel onUse={useParsed} onSave={saveParsed} saving={saving} />
+        </div>
+
+      {/* The form is always here, whether you're correcting an import or
+          typing from scratch — there's no mode to switch into. */}
+      <div ref={formRef} className="mt-10 flex items-center gap-3">
+        <h2 className="display shrink-0 text-lg font-semibold">Or fill it in</h2>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
+      <form onSubmit={handleSubmit(onSave)} className="mt-6 flex flex-col gap-8">
         <Section title="Recipe details">
           <div className="grid gap-4 sm:grid-cols-[2fr_1fr_1fr]">
             <Field label="Title" error={formState.errors.title?.message}>
@@ -601,12 +557,9 @@ export function AddRecipePage() {
         </Section>
 
         <div className="flex flex-wrap gap-2">
-          <Button type="button" disabled={saving} onClick={handleSubmit(onSave)}>
+          <Button type="submit" disabled={saving}>
             {saving ? <Loader2Icon className="animate-spin" /> : <BookmarkIcon />}
             {saving ? "Saving…" : "Save to catalog"}
-          </Button>
-          <Button type="submit" variant="outline">
-            Generate recipe JSON
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -657,31 +610,6 @@ export function AddRecipePage() {
         </div>
       )}
 
-      {generated && (
-        <div ref={outputRef} className="mt-10 rounded-lg border border-border bg-card p-5">
-          <h2 className="display text-xl font-semibold">This recipe as JSON</h2>
-          <p className="mt-2 text-[13px] text-muted-foreground">
-            Saving to the catalog doesn't need any of this — it's here for
-            keeping a copy, moving a recipe elsewhere, or pasting into the
-            Paste JSON tab on another catalog.
-            {recipes.length > 0 &&
-              ` The backup below bundles it with all ${recipes.length} saved recipe${recipes.length === 1 ? "" : "s"}.`}
-          </p>
-          <pre className="mt-4 max-h-96 overflow-auto rounded-md border border-border bg-background p-4 font-mono text-[12px] leading-relaxed">
-            {JSON.stringify(generated, null, 2)}
-          </pre>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button onClick={copyJson}>
-              <CopyIcon />
-              Copy JSON block
-            </Button>
-            <Button variant="outline" onClick={downloadFull}>
-              <DownloadIcon />
-              Download a backup
-            </Button>
-          </div>
-        </div>
-      )}
       </>
       )}
 

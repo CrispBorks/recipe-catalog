@@ -32,10 +32,11 @@ await page.getByLabel('Recipe page link').fill('https://example.com/x');
 await page.getByRole('button',{name:/Fetch recipe/}).click();
 await page.waitForSelector('text=What it found');
 
-ok('Save is right there on the Link tab', await page.getByRole('button',{name:/Save to catalog/}).count()===1);
-ok('Edit first is still offered', await page.getByRole('button',{name:/Edit first/}).count()===1);
+// one in the import panel, one at the foot of the form
+ok('save is offered on the import itself', await page.getByRole('button',{name:/Save to catalog/}).count()===2);
+ok('reviewing in the form is still offered', await page.getByRole('button',{name:/Review in the form/}).count()===1);
 
-await page.getByRole('button',{name:/Save to catalog/}).click();
+await page.getByRole('button',{name:/Save to catalog/}).first().click();
 await page.waitForTimeout(300);
 ok('key prompt appears on this tab', await page.getByLabel('Catalog key').count()===1);
 await page.getByLabel('Catalog key').fill(KEY);
@@ -43,10 +44,10 @@ await page.getByRole('button',{name:'Save',exact:true}).click();
 await page.waitForSelector('[data-sonner-toast]');
 ok('saved without visiting the form', store.length===1 && store[0].id==='mascarpone-whipped-cream', store);
 ok('fields carried across', store[0].time===10 && store[0].servings===4 && store[0].ingredients.length===2 && store[0].ingredients[0].qty===8, store[0]);
-ok('confirmation shown on the Link tab', (await page.textContent('body')).includes('is in the catalog'));
+ok('the save is confirmed on the page', (await page.textContent('body')).includes('Saved to the catalog'));
 await page.screenshot({path: 'tests/browser/screenshots/linksave.png'});
 
-await page.getByRole('link',{name:'Open it'}).click();
+await page.getByRole('link',{name:/Open the recipe/}).click();
 await page.waitForURL(/mascarpone-whipped-cream/);
 await page.waitForTimeout(1200);
 const h1=(await page.locator('h1').textContent()).trim();

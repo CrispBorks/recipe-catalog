@@ -8,7 +8,15 @@ const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/recipes.json', impor
 const b = await launch();
 const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light' });
 const page = await ctx.newPage();
-await ctx.route('**/api/recipes*', r => r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({recipes:FIXTURE})}));
+const posted = [];
+await ctx.route('**/api/recipes*', r => {
+  if (r.request().method() === 'POST') {
+    posted.push(JSON.parse(r.request().postData()));
+    return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({saved:posted.at(-1).id})});
+  }
+  return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({recipes:FIXTURE})});
+});
+await ctx.route('**/api/session', r => r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true})}));
 
 const errors = [];
 page.on('pageerror', e => errors.push(e.message));
@@ -152,21 +160,22 @@ await page.getByRole('button', { name: 'dinner', exact: true }).click();
 await page.getByRole('textbox', { name: 'Ingredient 1', exact: true }).fill('carrots');
 await page.getByRole('textbox', { name: 'Quantity 1', exact: true }).fill('3');
 await page.getByRole('textbox', { name: 'Step 1', exact: true }).fill('Chop and simmer.');
-await page.getByRole('button', { name: 'Generate recipe JSON' }).click();
-await page.waitForSelector('pre');
-const json = await page.locator('pre').textContent();
-const parsed = JSON.parse(json);
-ok('generated JSON is valid and complete',
-   parsed.id === 'test-soup' && parsed.time === 30 && parsed.tags.includes('dinner') &&
-   parsed.ingredients[0].name === 'carrots' && parsed.ingredients[0].qty === 3 &&
-   parsed.steps[0] === 'Chop and simmer.');
+await page.getByRole('button', { name: /Save to catalog/ }).click();
+await page.waitForSelector('text=Saved to the catalog');
+const saved = posted.at(-1);
+ok('the form saves straight to the catalog',
+   saved.id === 'test-soup' && saved.time === 30 && saved.tags.includes('dinner') &&
+   saved.ingredients[0].name === 'carrots' && saved.ingredients[0].qty === 3 &&
+   saved.steps[0] === 'Chop and simmer.', JSON.stringify(saved));
 
-// duplicate id rejected
+// duplicate id rejected before anything is sent
+const before = posted.length;
 await page.getByLabel('Title').fill('Lemon Garlic Roast Chicken');
 await page.waitForTimeout(200);
-await page.getByRole('button', { name: 'Generate recipe JSON' }).click();
-await page.waitForTimeout(300);
+await page.getByRole('button', { name: /Save to catalog/ }).click();
+await page.waitForTimeout(400);
 ok('duplicate id blocked', (await page.textContent('body')).includes('is already used by'));
+ok('nothing sent for a duplicate', posted.length === before, posted.length - before);
 await page.screenshot({ path: 'tests/browser/screenshots/app-add-light.png' });
 
 console.log('\nerrors:', errors.length ? errors : 'none');
