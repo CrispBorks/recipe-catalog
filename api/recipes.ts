@@ -14,18 +14,14 @@
 
 import { neon } from "@neondatabase/serverless";
 
-type Ingredient = { qty: number | string; unit: string; name: string };
-type Recipe = {
-  id: string;
-  title: string;
-  tags?: string[];
-  time?: number;
-  servings?: number;
-  ingredients?: Ingredient[];
-  steps?: string[];
-  notes?: string[];
-  addedAt?: string;
-};
+// The .js extension is deliberate and load-bearing: the build compiles both
+// files to .js and the package is "type": "module", where an extensionless
+// specifier does not resolve at runtime. tsc and Vite both map it back to the
+// .ts source.
+import type { Ingredient, Recipe } from "../src/lib/recipes.js";
+
+/** What the table adds on top of a Recipe. */
+type Stored = Recipe & { addedAt?: string };
 
 type Req = {
   method?: string;
@@ -114,8 +110,8 @@ type Row = {
 /** Empty arrays and nulls are dropped rather than sent as [] — the Recipe type
  *  treats every field but id and title as optional, and the rest of the app
  *  tests for presence. */
-function toRecipe(row: Row): Recipe {
-  const recipe: Recipe = { id: row.id, title: row.title };
+function toRecipe(row: Row): Stored {
+  const recipe: Stored = { id: row.id, title: row.title };
   if (row.tags?.length) recipe.tags = row.tags;
   if (row.time_minutes !== null) recipe.time = row.time_minutes;
   if (row.servings !== null) recipe.servings = row.servings;

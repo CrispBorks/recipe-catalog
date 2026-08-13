@@ -32,6 +32,57 @@ export async function fetchRecipes(): Promise<Recipe[]> {
   return Array.isArray(recipes) ? (recipes as Recipe[]) : [];
 }
 
+/** Builds a Recipe from fields that are all strings — which is what both the
+ *  form and the parsers produce. Empty fields are dropped rather than saved as
+ *  "" or 0, since every field but id and title is optional and the rest of the
+ *  app tests for presence.
+ *
+ *  A quantity that isn't a number is kept as written: "a splash" and "to taste"
+ *  are legitimate amounts, and losing them would be worse than not scaling
+ *  them. */
+export function assembleRecipe(fields: {
+  id: string;
+  title: string;
+  time?: string;
+  servings?: string;
+  tags?: string[];
+  ingredients?: { qty: string; unit: string; name: string }[];
+  steps?: string[];
+  notes?: string[];
+}): Recipe {
+  const number = (value?: string) => {
+    const text = value?.trim() ?? "";
+    return text !== "" && Number.isFinite(Number(text)) ? Number(text) : undefined;
+  };
+
+  const recipe: Recipe = { id: fields.id.trim(), title: fields.title.trim() };
+
+  if (fields.tags?.length) recipe.tags = fields.tags;
+
+  const time = number(fields.time);
+  if (time !== undefined) recipe.time = time;
+
+  const servings = number(fields.servings);
+  if (servings !== undefined) recipe.servings = servings;
+
+  const ingredients = (fields.ingredients ?? [])
+    .filter((row) => row.name.trim() !== "")
+    .map((row) => ({
+      qty: number(row.qty) ?? row.qty.trim(),
+      unit: row.unit.trim(),
+      name: row.name.trim(),
+    }));
+  if (ingredients.length) recipe.ingredients = ingredients;
+
+  const steps = (fields.steps ?? []).map((s) => s.trim()).filter(Boolean);
+  if (steps.length) recipe.steps = steps;
+
+  const notes = (fields.notes ?? []).map((n) => n.trim()).filter(Boolean);
+  if (notes.length) recipe.notes = notes;
+
+  return recipe;
+}
+
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
 /** Shared by save and delete: read the body as text first so a response that

@@ -2,3 +2,6 @@ node_modules/
 dist/
 .vercel/
 *.local
+
+# test artefacts
+tests/browser/screenshots/
