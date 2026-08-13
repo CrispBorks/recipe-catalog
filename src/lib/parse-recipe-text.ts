@@ -113,20 +113,34 @@ function unitLabel(id: string | null, spelled: string | null, qty: number | null
   return base;
 }
 
-/** Recipe sites often restate the amount in the other measurement system right
- *  after it: "1 1/4 cups (296 ml) heavy cream". Once the quantity has been read
- *  off the front, that parenthetical is a duplicate, and left alone it becomes
- *  part of the ingredient's name.
+/** Recipe sites often restate the amount in other units right after it:
+ *  "1 1/4 cups (296 ml) heavy cream", or several at once as in Sally's Baking
+ *  Addiction's "3/4 cup (12 Tbsp; 170g) unsalted butter". Once the quantity has
+ *  been read off the front, that parenthetical is a duplicate, and left alone
+ *  it becomes part of the ingredient's name.
  *
- *  Only a *leading* parenthetical is dropped, and only one that is nothing but
- *  a number and a unit. A trailing one qualifies the ingredient rather than
- *  repeating the amount — "1 whole chicken (about 4 lb)" needs its weight — and
- *  "(packed)" or "(plus more for dusting)" aren't measurements at all. */
-const RESTATED_AMOUNT =
-  /^\(\s*(?:about\s+|approx\.?\s+|~\s*)?[\d]+(?:[.,]\d+)?(?:\s*[-–/]\s*\d+(?:[.,]\d+)?)?\s*(?:g|kg|mg|ml|l|oz|lb|lbs|grams?|kilograms?|milliliters?|liters?|ounces?|pounds?)\s*\)\s*/i;
+ *  Three things keep this from eating anything meaningful. It only ever matches
+ *  a *leading* parenthetical — a trailing one qualifies the ingredient rather
+ *  than repeating the amount, and "1 whole chicken (about 4 lb)" needs its
+ *  weight. It only matches contents that are entirely measurements, so
+ *  "(packed)" and "(plus more for dusting)" are safe. And it only applies when
+ *  the line already had a unit of its own to restate, which is what separates
+ *  "3/4 cup (170g) butter" from "1 (14 oz) can coconut milk" — the can's size
+ *  is the only measurement that line has. */
+const MEASURE = String.raw`\d+(?:[.,]\d+)?(?:\s*\/\s*\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?\s*(?:g|kg|mg|ml|l|oz|lb|lbs|tbsp|tsp|c|cups?|sticks?|grams?|kilograms?|milliliters?|liters?|ounces?|pounds?|tablespoons?|teaspoons?)`;
+
+const RESTATED_AMOUNT = new RegExp(
+  String.raw`^\(\s*(?:about\s+|approx\.?\s+|~\s*)?${MEASURE}(?:\s*[;,/]\s*(?:or\s+)?${MEASURE})*\s*\)\s*`,
+  "i",
+);
+
+/** "2 and 1/3 cups" is how some sites spell a mixed number. Left as-is the
+ *  quantity reads as 2 and the rest of the fraction is stranded at the front of
+ *  the name — "and 1/3 cups (275g) cake flour". */
+const SPELLED_MIXED_NUMBER = /^(\d+)\s+and\s+(\d+\s*\/\s*\d+)\b/i;
 
 export function parseIngredientLine(line: string): ParsedIngredient {
-  const text = clean(line);
+  const text = clean(line).replace(SPELLED_MIXED_NUMBER, "$1 $2");
 
   // Without a quantity up front there is nothing to split off, and letting the
   // library hunt for one further into the line does more harm than good:
@@ -145,7 +159,10 @@ export function parseIngredientLine(line: string): ParsedIngredient {
   return {
     qty: qty === null ? "" : String(Math.round(qty * 1000) / 1000),
     unit: unitLabel(parsed.unitOfMeasureID, parsed.unitOfMeasure, qty),
-    name: parsed.description.replace(RESTATED_AMOUNT, "").trim(),
+    name: (parsed.unitOfMeasureID
+      ? parsed.description.replace(RESTATED_AMOUNT, "")
+      : parsed.description
+    ).trim(),
   };
 }
 
