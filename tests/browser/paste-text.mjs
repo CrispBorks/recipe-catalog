@@ -6,7 +6,15 @@ const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/recipes.json', impor
 
 const b = await launch();
 const page = await b.newPage({ viewport: { width: 390, height: 1000 } });
-await page.route('**/api/recipes*', r => r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({recipes:FIXTURE})}));
+const posted = [];
+await page.route('**/api/recipes*', r => {
+  if (r.request().method() === 'POST') {
+    posted.push(JSON.parse(r.request().postData()));
+    return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({saved:posted.at(-1).id})});
+  }
+  return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({recipes:FIXTURE})});
+});
+await page.route('**/api/session', r => r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true})}));
 const errors = [];
 page.on('pageerror', e => errors.push(e.message));
 
@@ -36,14 +44,10 @@ https://youtu.be/dQw4w9WgXcQ`;
 await page.goto(BASE + '/add-recipe');
 await page.waitForSelector('form');
 
-// three modes now
-await page.getByRole('button', { name: 'Paste text' }).click();
-await page.waitForTimeout(200);
-ok('Paste text mode opens', await page.getByLabel('Recipe text').count() === 1);
-ok('form is hidden in text mode', await page.locator('form').count() === 0);
-
-// empty state
-ok('no fill button action while empty', await page.getByRole('button', { name: /Fill in the form/ }).isDisabled());
+// the import panel sits above the form rather than replacing it
+ok('paste area is on the page', await page.getByLabel('Recipe text').count() === 1);
+ok('the form is there too', await page.locator('form').count() === 1);
+ok('no actions offered while empty', await page.getByRole('button', { name: /Review in the form/ }).count() === 0);
 
 await page.getByLabel('Recipe text').fill(RECIPE);
 await page.waitForTimeout(400);
@@ -55,9 +59,9 @@ ok('preview shows an ingredient with qty+unit', summary.includes('large shrimp, 
 await page.screenshot({ path: 'tests/browser/screenshots/pt-preview.png' });
 
 // push it into the form
-await page.getByRole('button', { name: /Fill in the form/ }).click();
+await page.getByRole('button', { name: /Review in the form/ }).click();
 await page.waitForTimeout(500);
-ok('switched back to the form', await page.locator('form').count() === 1);
+ok('the form is filled in below', await page.locator('form').count() === 1);
 
 const val = async (name) => page.getByRole('textbox', { name, exact: true }).inputValue();
 ok(`title filled (${await page.getByLabel('Title').inputValue()})`, await page.getByLabel('Title').inputValue() === 'Garlic Butter Shrimp');
@@ -79,11 +83,11 @@ ok('youtube link kept in notes', (await val('Note 2')).includes('youtu.be'));
 const tagPressed = await page.getByRole('button', { name: 'seafood', exact: true }).getAttribute('aria-pressed');
 ok('parsed tags are pre-selected', tagPressed === 'true');
 
-// and it generates correct JSON end-to-end
-await page.getByRole('button', { name: 'Generate recipe JSON' }).click();
-await page.waitForSelector('pre');
-const recipe = JSON.parse(await page.locator('pre').textContent());
-ok('generated JSON is complete',
+// and it saves correctly end to end
+await page.getByRole('button', { name: /Save to catalog/ }).last().click();
+await page.waitForSelector('text=Saved to the catalog');
+const recipe = posted.at(-1);
+ok('saved recipe is complete',
    recipe.id === 'garlic-butter-shrimp' && recipe.time === 22 && recipe.servings === 3 &&
    recipe.ingredients.length === 5 && recipe.steps.length === 3 && recipe.notes.length === 2,
    JSON.stringify(recipe).slice(0, 160));
@@ -92,8 +96,6 @@ ok('tags carried through', JSON.stringify(recipe.tags) === '["dinner","seafood",
 await page.screenshot({ path: 'tests/browser/screenshots/pt-form.png' });
 
 // unstructured text still works, with the caveat shown
-await page.getByRole('button', { name: 'Paste text' }).click();
-await page.waitForTimeout(200);
 await page.getByLabel('Recipe text').fill(`Quick Cucumber Salad
 2 cucumbers
 1 tbsp rice vinegar
