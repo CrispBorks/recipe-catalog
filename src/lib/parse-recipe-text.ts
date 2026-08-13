@@ -113,6 +113,18 @@ function unitLabel(id: string | null, spelled: string | null, qty: number | null
   return base;
 }
 
+/** Recipe sites often restate the amount in the other measurement system right
+ *  after it: "1 1/4 cups (296 ml) heavy cream". Once the quantity has been read
+ *  off the front, that parenthetical is a duplicate, and left alone it becomes
+ *  part of the ingredient's name.
+ *
+ *  Only a *leading* parenthetical is dropped, and only one that is nothing but
+ *  a number and a unit. A trailing one qualifies the ingredient rather than
+ *  repeating the amount — "1 whole chicken (about 4 lb)" needs its weight — and
+ *  "(packed)" or "(plus more for dusting)" aren't measurements at all. */
+const RESTATED_AMOUNT =
+  /^\(\s*(?:about\s+|approx\.?\s+|~\s*)?[\d]+(?:[.,]\d+)?(?:\s*[-–/]\s*\d+(?:[.,]\d+)?)?\s*(?:g|kg|mg|ml|l|oz|lb|lbs|grams?|kilograms?|milliliters?|liters?|ounces?|pounds?)\s*\)\s*/i;
+
 export function parseIngredientLine(line: string): ParsedIngredient {
   const text = clean(line);
 
@@ -133,7 +145,7 @@ export function parseIngredientLine(line: string): ParsedIngredient {
   return {
     qty: qty === null ? "" : String(Math.round(qty * 1000) / 1000),
     unit: unitLabel(parsed.unitOfMeasureID, parsed.unitOfMeasure, qty),
-    name: parsed.description.trim(),
+    name: parsed.description.replace(RESTATED_AMOUNT, "").trim(),
   };
 }
 

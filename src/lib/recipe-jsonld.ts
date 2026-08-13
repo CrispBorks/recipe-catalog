@@ -183,6 +183,29 @@ function tagsOf(node: Node): string[] {
   return [...new Set(tags)].slice(0, 8);
 }
 
+/** Some sites publish every batch size they offer — a 1× list followed by the
+ *  same ingredients at 2× — in one recipeIngredient array, which arrives as
+ *  eight ingredients for a four-ingredient recipe. When the back half names the
+ *  same things as the front half in the same order, it's a scaled repeat and
+ *  the first (unscaled) half is the one to keep.
+ *
+ *  Matching on names alone is what makes this safe to do: a recipe that
+ *  genuinely uses flour twice won't have its whole second half line up with its
+ *  first, so nothing gets dropped from a real list. */
+function dropScaledRepeat(ingredients: ParsedRecipe["ingredients"]) {
+  if (ingredients.length < 4 || ingredients.length % 2 !== 0) return ingredients;
+
+  const key = (index: number) =>
+    ingredients[index].name.toLowerCase().replace(/[^a-z]/g, "");
+
+  const half = ingredients.length / 2;
+  for (let i = 0; i < half; i++) {
+    const front = key(i);
+    if (front === "" || front !== key(i + half)) return ingredients;
+  }
+  return ingredients.slice(0, half);
+}
+
 export type ImportedRecipe = ParsedRecipe & {
   /** Where it came from, so the note can credit it. */
   sourceUrl: string;
@@ -194,10 +217,12 @@ export function recipeFromJsonLd(node: Node, sourceUrl = ""): ImportedRecipe {
     isoDurationMinutes(node.totalTime) ??
     (isoDurationMinutes(node.prepTime) ?? 0) + (isoDurationMinutes(node.cookTime) ?? 0);
 
-  const ingredients = asArray(node.recipeIngredient ?? node.ingredients)
-    .map(asText)
-    .filter(Boolean)
-    .map(parseIngredientLine);
+  const ingredients = dropScaledRepeat(
+    asArray(node.recipeIngredient ?? node.ingredients)
+      .map(asText)
+      .filter(Boolean)
+      .map(parseIngredientLine),
+  );
 
   const notes: string[] = [];
   const description = asText(node.description);
