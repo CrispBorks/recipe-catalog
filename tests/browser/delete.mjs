@@ -7,12 +7,19 @@ let store=[{id:'test-soup',title:'Test Soup',time:20,ingredients:[{qty:2,unit:'c
            {id:'other',title:'Other Thing',time:5,steps:['Wait.']}];
 let deletes=0;
 
+let signedIn=false;
+await page.route('**/api/session', r=>{
+  const body=JSON.parse(r.request().postData()||'{}');
+  if(body.key!==KEY) return r.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'Wrong key.'})});
+  signedIn=true;
+  return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true})});
+});
 await page.route('**/api/recipes*', async r=>{
   const req=r.request();
   if(req.method()==='GET') return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({recipes:store})});
   if(req.method()==='DELETE'){
     deletes++;
-    if(req.headers()['x-catalog-key']!==KEY) return r.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'Wrong key.'})});
+    if(!signedIn) return r.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'Wrong key.'})});
     const id=new URL(req.url()).searchParams.get('id');
     store=store.filter(x=>x.id!==id);
     return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({deleted:id})});
@@ -43,19 +50,21 @@ await page.getByRole('button',{name:'Keep it'}).click();
 await page.waitForTimeout(250);
 ok('cancelling deletes nothing', deletes===0 && store.length===2);
 
-// wrong key path
-await page.evaluate(()=>localStorage.setItem('cardCatalog.writeKey.v1','nope'));
-await page.reload(); await page.waitForSelector('h1');
+// not signed in: the first confirmed delete asks for the key rather than failing
 await page.getByRole('button',{name:/Delete recipe/}).click();
 await page.waitForSelector('[role="alertdialog"]');
 await page.getByRole('button',{name:'Delete it'}).click();
+await page.waitForSelector('#catalog-key');
+ok('asks for the key instead of reporting an error', await page.getByLabel('Catalog key').count()===1);
+ok('still on the recipe', page.url().includes('/recipe/test-soup'));
+
+// a wrong key is reported, and the prompt stays put
+await page.getByLabel('Catalog key').fill('nope');
+await page.locator('[role="alertdialog"]').waitFor({state:'detached'});
+await page.getByRole('button',{name:'Delete',exact:true}).click();
 await page.waitForSelector('[data-sonner-toast]');
 ok('wrong key is reported', (await page.textContent('[data-sonner-toast]')).includes('Wrong key'));
-ok('still on the recipe', page.url().includes('/recipe/test-soup'));
-ok('asks for the key again', await page.getByLabel('Catalog key').count()===1);
-// the dialog marks the rest of the page aria-hidden while it's open, so its
-// buttons are out of the accessibility tree until it has finished closing
-await page.locator('[role="alertdialog"]').waitFor({state:'detached'});
+ok('the prompt stays open', await page.getByLabel('Catalog key').count()===1);
 const exactDelete = await page.getByRole('button',{name:'Delete',exact:true}).count();
 const anySave = await page.getByRole('button',{name:'Save',exact:true}).count();
 ok('the prompt says Delete, not Save', exactDelete>=1 && anySave===0, {exactDelete,anySave});

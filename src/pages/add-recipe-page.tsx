@@ -26,13 +26,7 @@ import { PasteText } from "@/components/paste-text";
 import { SegmentedControl } from "@/components/segmented-control";
 import { Link } from "react-router-dom";
 import { useRecipes } from "@/hooks/use-recipes";
-import {
-  forgetCatalogKey,
-  isWrongKey,
-  readCatalogKey,
-  rememberCatalogKey,
-} from "@/lib/catalog-key";
-import { assembleRecipe, saveRecipe, type Recipe } from "@/lib/recipes";
+import { assembleRecipe, authorize, saveRecipe, type Recipe } from "@/lib/recipes";
 import type { ParsedRecipe } from "@/lib/parse-recipe-text";
 import { cn } from "@/lib/utils";
 
@@ -77,7 +71,7 @@ function slugify(text: string) {
 
 export function AddRecipePage() {
   const { recipes, refresh } = useRecipes();
-  const [catalogKey, setCatalogKey] = React.useState(readCatalogKey);
+  const [catalogKey, setCatalogKey] = React.useState("");
   const [needsKey, setNeedsKey] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState<Recipe | null>(null);
@@ -158,21 +152,15 @@ export function AddRecipePage() {
   const save = async (list: Recipe | Recipe[]) => {
     const recipes = Array.isArray(list) ? list : [list];
     if (recipes.length === 0) return;
-
     pending.current = recipes;
-    const key = catalogKey.trim() || readCatalogKey();
-    if (!key) {
-      setNeedsKey(true);
-      return;
-    }
 
     setSaving(true);
     let done = 0;
-    let failure: string | null = null;
+    let failure: { error: string; unauthorized?: boolean } | null = null;
     for (const recipe of recipes) {
-      const result = await saveRecipe(recipe, key);
+      const result = await saveRecipe(recipe);
       if (!result.ok) {
-        failure = result.error;
+        failure = result;
         break;
       }
       done += 1;
@@ -180,21 +168,22 @@ export function AddRecipePage() {
     setSaving(false);
 
     if (done > 0) {
-      rememberCatalogKey(key);
       setNeedsKey(false);
       setSaved(recipes[done - 1]);
       refresh();
     }
 
     if (failure) {
-      // A wrong key is the one failure worth asking about again; anything else
-      // is the server's problem, and retyping won't fix it.
-      if (isWrongKey(failure)) {
-        forgetCatalogKey();
+      // Not signed in on this device yet — ask, rather than reporting an error
+      // for something the next few seconds can fix.
+      if (failure.unauthorized) {
         setNeedsKey(true);
+        if (done === 0) return;
       }
       toast.error(
-        done === 0 ? failure : `Saved ${done} of ${recipes.length}, then stopped: ${failure}`,
+        done === 0
+          ? failure.error
+          : `Saved ${done} of ${recipes.length}, then stopped: ${failure.error}`,
       );
       return;
     }
@@ -204,6 +193,21 @@ export function AddRecipePage() {
         ? `"${recipes[0].title}" is in the catalog.`
         : `${done} recipes in the catalog.`,
     );
+  };
+
+  /** Signs in, then finishes whatever save was interrupted. */
+  const submitKey = async () => {
+    setSaving(true);
+    const result = await authorize(catalogKey.trim());
+    setSaving(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    setNeedsKey(false);
+    setCatalogKey("");
+    if (pending.current) await save(pending.current);
   };
 
   const onSave = (values: FormValues) => save(buildRecipe(values));
@@ -324,7 +328,7 @@ export function AddRecipePage() {
               value={catalogKey}
               onChange={setCatalogKey}
               busy={saving}
-              onSubmit={() => pending.current && void save(pending.current)}
+              onSubmit={() => void submitKey()}
             />
           )}
         </div>
@@ -340,7 +344,7 @@ export function AddRecipePage() {
               value={catalogKey}
               onChange={setCatalogKey}
               busy={saving}
-              onSubmit={() => pending.current && void save(pending.current)}
+              onSubmit={() => void submitKey()}
             />
           )}
         </div>
@@ -631,7 +635,7 @@ export function AddRecipePage() {
             value={catalogKey}
             onChange={setCatalogKey}
             busy={saving}
-            onSubmit={handleSubmit(onSave)}
+            onSubmit={() => void submitKey()}
           />
         )}
       </form>

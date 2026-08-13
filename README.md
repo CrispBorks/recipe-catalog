@@ -112,7 +112,13 @@ things set up once, both on free tiers:
 2. **`CATALOG_WRITE_KEY`** as an environment variable — any passphrase. Reads
    are public like the rest of the site, but without this anyone who found the
    URL could write to your catalog, so saving refuses to work until it's set.
-   The app asks for it once and remembers it per device.
+
+   The app asks for the key the first time a device tries to change something,
+   trades it at `POST /api/session` for a year-long `HttpOnly` cookie, and
+   doesn't ask again. A cookie rather than `localStorage` because Safari caps
+   anything JavaScript writes at seven days — on iOS that's the difference
+   between typing the key once and typing it every week. `/api/recipes` also
+   still accepts an `x-catalog-key` header, so the API stays usable from curl.
 
 Skip both and everything else still works; the Save button just reports that
 saving isn't configured.

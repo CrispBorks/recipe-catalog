@@ -19,6 +19,7 @@ import { neon } from "@neondatabase/serverless";
 // specifier does not resolve at runtime. tsc and Vite both map it back to the
 // .ts source.
 import type { Ingredient, Recipe } from "../src/lib/recipes.js";
+import { COOKIE_NAME, readCookie, tokenMatches } from "./session.js";
 
 /** What the table adds on top of a Recipe. */
 type Stored = Recipe & { addedAt?: string };
@@ -195,8 +196,14 @@ export default async function handler(req: Req, res: Res) {
       });
       return;
     }
-    const provided = req.headers["x-catalog-key"];
-    if ((Array.isArray(provided) ? provided[0] : provided) !== expected) {
+    // The cookie is the ordinary path — set once by /api/session and attached
+    // by the browser thereafter. The header stays supported so the API is still
+    // usable from a script or curl without a session.
+    const header = req.headers["x-catalog-key"];
+    const sent = Array.isArray(header) ? header[0] : header;
+    const token = readCookie(req.headers.cookie, COOKIE_NAME);
+
+    if (sent !== expected && !(token !== "" && tokenMatches(token, expected))) {
       res.status(401).json({ error: "Wrong key." });
       return;
     }
