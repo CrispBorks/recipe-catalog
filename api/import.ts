@@ -6,7 +6,13 @@
  *  the <script type="application/ld+json"> block the site already publishes for
  *  Google, and maps the fields across. */
 
-import { findRecipeNode, recipeFromJsonLd } from "../src/lib/recipe-jsonld";
+/** Loaded on demand rather than at module scope. It lives outside api/, and how
+ *  a serverless build resolves that boundary varies; a static import that fails
+ *  to resolve takes the whole function down with an opaque 500, while this way
+ *  the reason comes back as a readable message. */
+async function loadMapper() {
+  return import("../src/lib/recipe-jsonld");
+}
 
 /** Enough of Vercel's Node request/response to type this handler without
  *  taking on @vercel/node as a dependency. */
@@ -45,6 +51,16 @@ function validate(raw: string): { url: URL } | { error: string } {
 
 export default async function handler(req: Req, res: Res) {
   res.setHeader("Cache-Control", "public, max-age=0, s-maxage=3600");
+
+  let mapper: Awaited<ReturnType<typeof loadMapper>>;
+  try {
+    mapper = await loadMapper();
+  } catch (error) {
+    res.status(500).json({
+      error: `The importer couldn't load its parser: ${error instanceof Error ? error.message : String(error)}`,
+    });
+    return;
+  }
 
   if (req.method && req.method !== "GET" && req.method !== "HEAD") {
     res.status(405).json({ error: "Use GET." });
@@ -98,7 +114,7 @@ export default async function handler(req: Req, res: Res) {
     return;
   }
 
-  const node = findRecipeNode(html);
+  const node = mapper.findRecipeNode(html);
   if (!node) {
     res.status(422).json({
       error:
@@ -107,7 +123,7 @@ export default async function handler(req: Req, res: Res) {
     return;
   }
 
-  const recipe = recipeFromJsonLd(node, checked.url.toString());
+  const recipe = mapper.recipeFromJsonLd(node, checked.url.toString());
   if (recipe.ingredients.length === 0 && recipe.steps.length === 0) {
     res.status(422).json({
       error: "Found a recipe on that page but it had no ingredients or method.",
