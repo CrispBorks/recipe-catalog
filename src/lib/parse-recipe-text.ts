@@ -1,9 +1,14 @@
 /** Turns a blob of pasted recipe text into the builder's form fields.
  *
- *  Deliberately dependency-free so it can be unit-tested straight from node.
- *  Everything here is a heuristic — the output is a starting point the user
- *  edits, never something committed unreviewed, so it leans towards keeping
- *  text (in notes) rather than dropping anything it can't classify. */
+ *  Splitting a single ingredient line into quantity/unit/name is delegated to
+ *  `parse-ingredient`, which knows far more unit spellings, range forms and
+ *  quantity oddities than is worth maintaining here. Everything above that —
+ *  finding the title, the sections, the steps — is still local heuristics, and
+ *  the output is a starting point the user edits, never something saved
+ *  unreviewed, so it leans towards keeping text (in notes) rather than dropping
+ *  anything it can't classify. */
+
+import { parseIngredient } from "parse-ingredient";
 
 export type ParsedIngredient = { qty: string; unit: string; name: string };
 
@@ -38,49 +43,15 @@ const SECTION_HEADINGS: [Section, RegExp][] = [
   ],
 ];
 
-const UNICODE_FRACTIONS: Record<string, number> = {
-  "½": 0.5, "⅓": 1 / 3, "⅔": 2 / 3, "¼": 0.25, "¾": 0.75,
-  "⅕": 0.2, "⅖": 0.4, "⅗": 0.6, "⅘": 0.8, "⅙": 1 / 6, "⅚": 5 / 6,
-  "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875,
-};
-
-// Longest first so "tablespoons" wins over "tbsp" and "cups" over "cup".
-const UNITS = [
-  "tablespoons", "tablespoon", "teaspoons", "teaspoon", "kilograms", "kilogram",
-  "milliliters", "milliliter", "fluid ounces", "fluid ounce", "packages", "package",
-  "handfuls", "handful", "gallons", "gallon", "bunches", "bunch", "pinches", "pinch",
-  "quarts", "quart", "sprigs", "sprig", "sticks", "stick", "slices", "slice",
-  "stalks", "stalk", "strips", "strip", "pieces", "piece", "cloves", "clove",
-  "dashes", "dash", "grams", "gram", "heads", "head", "jars", "jar", "liters",
-  "liter", "ounces", "ounce", "pints", "pint", "pounds", "pound", "cans", "can",
-  "cups", "cup", "ribs", "rib", "tbsps", "tbsp", "tsps", "tsp", "lbs", "lb",
-  "oz", "kg", "ml", "g", "l",
-];
-
 const BULLET = /^[-–—*•·▢□]\s*/;
 const STEP_NUMBER = /^(?:step\s*)?\d+\s*[.):-]\s+/i;
 
 const clean = (line: string) => line.replace(BULLET, "").trim();
 
-function toNumber(raw: string): number | null {
-  const text = raw.trim();
-
-  // "1 1/2" or "1 ½"
-  const mixed = text.match(/^(\d+)\s+(\d+)\/(\d+)$/);
-  if (mixed) return Number(mixed[1]) + Number(mixed[2]) / Number(mixed[3]);
-
-  const mixedGlyph = text.match(/^(\d+)\s*([½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])$/);
-  if (mixedGlyph) return Number(mixedGlyph[1]) + UNICODE_FRACTIONS[mixedGlyph[2]];
-
-  const fraction = text.match(/^(\d+)\/(\d+)$/);
-  if (fraction) return Number(fraction[1]) / Number(fraction[2]);
-
-  if (UNICODE_FRACTIONS[text] !== undefined) return UNICODE_FRACTIONS[text];
-
-  const plain = Number(text.replace(",", "."));
-  return Number.isFinite(plain) ? plain : null;
-}
-
+/** Only used to decide whether a *headingless* line is an ingredient at all.
+ *  parse-ingredient does the actual splitting, but it can't be used for this
+ *  test: it also extracts trailing quantities, so "Preheat oven to 425F."
+ *  comes back with a quantity of 425 and would be filed as an ingredient. */
 const QUANTITY = new RegExp(
   "^(" +
     "\\d+\\s+\\d+\\/\\d+" + // 1 1/2
@@ -95,31 +66,82 @@ const QUANTITY = new RegExp(
     "\\s*",
 );
 
-const UNIT_MATCH = new RegExp(`^(${UNITS.join("|")})\\b\\.?\\s*`, "i");
+/** "large"/"medium"/"small" are sizes, not units — left alone they'd be read
+ *  as the unit of "2 large eggs" and the egg would lose its adjective. */
+const IGNORED_UNITS = ["small", "medium", "large", "extra", "whole", "half"];
+
+/** parse-ingredient reads a leading "about" as part of the description, which
+ *  then reads as an ingredient named "about 2 cups flour". */
+const APPROX_PREFIXES = ["approximately", "approx.", "approx", "about", "around", "roughly"];
+
+const APPROX_MATCH = new RegExp(
+  `^(?:${APPROX_PREFIXES.map((p) => p.replace(".", "\\.?")).join("|")})\\s+`,
+  "i",
+);
+
+const PARSE_OPTIONS = {
+  ignoreUOMs: IGNORED_UNITS,
+  leadingQuantityPrefixes: APPROX_PREFIXES,
+};
+
+/** The catalog writes units the way a recipe card does — "3 tbsp", "5 cloves",
+ *  "1½ cups" — so the library's canonical ids are mapped back to those. The
+ *  built-in `short` form isn't usable directly: it abbreviates cup to "c". */
+const UNIT_NAMES: Record<string, string> = {
+  tablespoon: "tbsp",
+  teaspoon: "tsp",
+  ounce: "oz",
+  pound: "lb",
+  gram: "g",
+  kilogram: "kg",
+  milliliter: "ml",
+  liter: "l",
+  fluidounce: "fl oz",
+  milligram: "mg",
+};
+
+/** Abbreviations never take an "s"; spelled-out units do. */
+const PLURALISES = /^[a-z]{3,}$/;
+
+function unitLabel(id: string | null, spelled: string | null, qty: number | null): string {
+  if (!id) return spelled ? spelled.toLowerCase() : "";
+  const base = UNIT_NAMES[id] ?? id;
+  // Fractions stay singular — recipes write "¾ cup", never "¾ cups".
+  if (qty !== null && qty > 1 && PLURALISES.test(base) && !UNIT_NAMES[id]) {
+    return base.endsWith("h") || base.endsWith("s") ? `${base}es` : `${base}s`;
+  }
+  return base;
+}
 
 export function parseIngredientLine(line: string): ParsedIngredient {
-  let rest = clean(line);
+  const text = clean(line);
 
-  const quantity = rest.match(QUANTITY);
-  let qty = "";
-  if (quantity) {
-    const value = toNumber(quantity[1]);
-    if (value !== null) {
-      qty = String(Math.round(value * 1000) / 1000);
-      rest = rest.slice(quantity[0].length);
-    }
+  // Without a quantity up front there is nothing to split off, and letting the
+  // library hunt for one further into the line does more harm than good:
+  // "Juice of 3 lemons" comes back as 3 × "Juice of lemons".
+  if (!QUANTITY.test(text.replace(APPROX_MATCH, ""))) {
+    return { qty: "", unit: "", name: text };
   }
 
-  let unit = "";
-  const unitMatch = rest.match(UNIT_MATCH);
-  // A unit only counts if something is left to name — "2 cups" alone is
-  // really an ingredient called "cups".
-  if (unitMatch && rest.slice(unitMatch[0].length).trim() !== "") {
-    unit = unitMatch[1].toLowerCase();
-    rest = rest.slice(unitMatch[0].length);
-  }
+  const [parsed] = parseIngredient(text, PARSE_OPTIONS);
+  if (!parsed) return { qty: "", unit: "", name: text };
 
-  return { qty, unit, name: rest.replace(/^of\s+/i, "").trim() };
+  // Ranges ("2-3 cloves") keep the lower bound, which is what the single
+  // numeric qty field can hold; the user scales from there anyway.
+  const qty = parsed.quantity;
+
+  return {
+    qty: qty === null ? "" : String(Math.round(qty * 1000) / 1000),
+    unit: unitLabel(parsed.unitOfMeasureID, parsed.unitOfMeasure, qty),
+    name: parsed.description.trim(),
+  };
+}
+
+/** True for lines like "For the icing:" — a label for the ingredients that
+ *  follow rather than an ingredient itself. */
+export function isIngredientGroupHeader(line: string): boolean {
+  const [parsed] = parseIngredient(clean(line), PARSE_OPTIONS);
+  return parsed?.isGroupHeader === true;
 }
 
 /** Hours and minutes are searched for independently — a single combined
@@ -280,7 +302,13 @@ export function parseRecipeText(input: string): ParsedRecipe {
     buckets.ingredients
       .map(clean)
       .filter(Boolean)
-      .forEach((line) => result.ingredients.push(parseIngredientLine(line)));
+      .forEach((line) => {
+        // "For the marinade:" labels the lines beneath it. It has no quantity
+        // and no unit, so as an ingredient row it is pure noise — but it is
+        // real information, so it goes to notes rather than being dropped.
+        if (isIngredientGroupHeader(line)) result.notes.push(line);
+        else result.ingredients.push(parseIngredientLine(line));
+      });
 
     result.steps = splitSteps(buckets.steps);
 
