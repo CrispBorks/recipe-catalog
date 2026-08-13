@@ -11,7 +11,7 @@
  *  to resolve takes the whole function down with an opaque 500, while this way
  *  the reason comes back as a readable message. */
 async function loadMapper() {
-  return import("../src/lib/recipe-jsonld");
+  return import("../src/lib/recipe-jsonld.js");
 }
 
 /** Enough of Vercel's Node request/response to type this handler without

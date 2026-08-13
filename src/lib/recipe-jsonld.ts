@@ -10,7 +10,7 @@
  *  fetch another origin's HTML. Kept free of DOM APIs and of the app's module
  *  aliases so the same file works in both places. */
 
-import { parseIngredientLine, type ParsedRecipe } from "./parse-recipe-text";
+import { parseIngredientLine, type ParsedRecipe } from "./parse-recipe-text.js";
 
 /** Loose stand-in for a JSON-LD node: everything in it is optional and any
  *  field may arrive as a value, an array of values, or a nested object. */
