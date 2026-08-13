@@ -34,6 +34,21 @@ export async function fetchRecipes(): Promise<Recipe[]> {
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
+/** Shared by save and delete: read the body as text first so a response that
+ *  isn't the API's own JSON — a platform error page, the SPA's index.html —
+ *  reports what actually came back instead of a parse failure. */
+async function readResult(res: Response): Promise<SaveResult> {
+  const text = await res.text();
+  let body: { error?: string } = {};
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return { ok: false, error: `The catalog returned ${res.status}, not JSON.` };
+  }
+  if (!res.ok) return { ok: false, error: body.error ?? `Failed (${res.status}).` };
+  return { ok: true };
+}
+
 /** Saves a recipe to the store. The key is the one from CATALOG_WRITE_KEY;
  *  it's kept in localStorage so it's asked for once per device. */
 export async function saveRecipe(recipe: Recipe, key: string): Promise<SaveResult> {
@@ -43,15 +58,19 @@ export async function saveRecipe(recipe: Recipe, key: string): Promise<SaveResul
       headers: { "content-type": "application/json", "x-catalog-key": key },
       body: JSON.stringify(recipe),
     });
-    const text = await res.text();
-    let body: { error?: string } = {};
-    try {
-      body = JSON.parse(text);
-    } catch {
-      return { ok: false, error: `The catalog returned ${res.status}, not JSON.` };
-    }
-    if (!res.ok) return { ok: false, error: body.error ?? `Save failed (${res.status}).` };
-    return { ok: true };
+    return await readResult(res);
+  } catch {
+    return { ok: false, error: "Couldn't reach the catalog — you may be offline." };
+  }
+}
+
+export async function deleteRecipe(id: string, key: string): Promise<SaveResult> {
+  try {
+    const res = await fetch(`/api/recipes?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: { "x-catalog-key": key },
+    });
+    return await readResult(res);
   } catch {
     return { ok: false, error: "Couldn't reach the catalog — you may be offline." };
   }

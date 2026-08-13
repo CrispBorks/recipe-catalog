@@ -19,12 +19,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BackLink, PageShell, SiteFooter } from "@/components/page-shell";
+import { CatalogKeyPrompt } from "@/components/catalog-key-prompt";
 import { ImportLink } from "@/components/import-link";
 import { PasteRecipes } from "@/components/paste-recipes";
 import { PasteText } from "@/components/paste-text";
 import { SegmentedControl } from "@/components/segmented-control";
 import { Link } from "react-router-dom";
 import { useRecipes } from "@/hooks/use-recipes";
+import {
+  forgetCatalogKey,
+  isWrongKey,
+  readCatalogKey,
+  rememberCatalogKey,
+} from "@/lib/catalog-key";
 import { saveRecipe, type Recipe } from "@/lib/recipes";
 import type { ParsedRecipe } from "@/lib/parse-recipe-text";
 import { cn } from "@/lib/utils";
@@ -68,19 +75,9 @@ function slugify(text: string) {
     .replace(/^-|-$/g, "");
 }
 
-const CATALOG_KEY_STORAGE = "cardCatalog.writeKey.v1";
-
-const readStoredKey = () => {
-  try {
-    return localStorage.getItem(CATALOG_KEY_STORAGE) ?? "";
-  } catch {
-    return "";
-  }
-};
-
 export function AddRecipePage() {
   const { recipes, refresh } = useRecipes();
-  const [catalogKey, setCatalogKey] = React.useState(readStoredKey);
+  const [catalogKey, setCatalogKey] = React.useState(readCatalogKey);
   const [needsKey, setNeedsKey] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState<Recipe | null>(null);
@@ -175,7 +172,7 @@ export function AddRecipePage() {
   /** Saves straight to the catalog, so the recipe is there without a commit. */
   const save = async (recipe: Recipe) => {
     retry.current = () => void save(recipe);
-    const key = catalogKey.trim() || readStoredKey();
+    const key = catalogKey.trim() || readCatalogKey();
 
     if (!key) {
       setNeedsKey(true);
@@ -189,15 +186,15 @@ export function AddRecipePage() {
     if (!result.ok) {
       // A wrong key is the one failure worth asking about again; everything
       // else is the store's problem, not something retyping will fix.
-      if (/wrong key/i.test(result.error)) {
-        localStorage.removeItem(CATALOG_KEY_STORAGE);
+      if (isWrongKey(result.error)) {
+        forgetCatalogKey();
         setNeedsKey(true);
       }
       toast.error(result.error);
       return;
     }
 
-    localStorage.setItem(CATALOG_KEY_STORAGE, key);
+    rememberCatalogKey(key);
     setNeedsKey(false);
     setSaved(recipe);
     refresh();
@@ -242,7 +239,7 @@ export function AddRecipePage() {
    *  the other five definitely weren't attempted. */
   const saveMany = async (list: Recipe[]) => {
     retry.current = () => void saveMany(list);
-    const key = catalogKey.trim() || readStoredKey();
+    const key = catalogKey.trim() || readCatalogKey();
 
     if (!key) {
       setNeedsKey(true);
@@ -264,14 +261,14 @@ export function AddRecipePage() {
     setSaving(false);
 
     if (done > 0) {
-      localStorage.setItem(CATALOG_KEY_STORAGE, key);
+      rememberCatalogKey(key);
       setNeedsKey(false);
       refresh();
     }
 
     if (failure) {
-      if (/wrong key/i.test(failure)) {
-        localStorage.removeItem(CATALOG_KEY_STORAGE);
+      if (isWrongKey(failure)) {
+        forgetCatalogKey();
         setNeedsKey(true);
       }
       toast.error(
@@ -383,8 +380,8 @@ export function AddRecipePage() {
             <CatalogKeyPrompt
               value={catalogKey}
               onChange={setCatalogKey}
-              saving={saving}
-              onRetry={() => retry.current?.()}
+              busy={saving}
+              onSubmit={() => retry.current?.()}
             />
           )}
         </div>
@@ -399,8 +396,8 @@ export function AddRecipePage() {
             <CatalogKeyPrompt
               value={catalogKey}
               onChange={setCatalogKey}
-              saving={saving}
-              onRetry={() => retry.current?.()}
+              busy={saving}
+              onSubmit={() => retry.current?.()}
             />
           )}
         </div>
@@ -690,8 +687,8 @@ export function AddRecipePage() {
           <CatalogKeyPrompt
             value={catalogKey}
             onChange={setCatalogKey}
-            saving={saving}
-            onRetry={handleSubmit(onSave)}
+            busy={saving}
+            onSubmit={handleSubmit(onSave)}
           />
         )}
       </form>
@@ -795,44 +792,3 @@ function Field({
   );
 }
 
-/** Asked for once per device, then kept in localStorage. Rendered wherever a
- *  save can start from, so the tab you're on is the tab that asks. */
-function CatalogKeyPrompt({
-  value,
-  onChange,
-  saving,
-  onRetry,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-  saving: boolean;
-  onRetry: () => void;
-}) {
-  return (
-    <div className="rounded-md border border-border bg-card p-4">
-      <Label htmlFor="catalog-key" className="label-mono text-muted-foreground">
-        Catalog key
-      </Label>
-      <p className="mt-2 max-w-[56ch] text-[13px] text-muted-foreground">
-        Saving needs the key set in the deployment's{" "}
-        <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[12px]">
-          CATALOG_WRITE_KEY
-        </code>
-        . It's asked for once and remembered on this device.
-      </p>
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <Input
-          id="catalog-key"
-          type="password"
-          autoComplete="off"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="sm:flex-1"
-        />
-        <Button type="button" disabled={value.trim() === "" || saving} onClick={onRetry}>
-          Save
-        </Button>
-      </div>
-    </div>
-  );
-}
