@@ -15,10 +15,144 @@ export type Recipe = {
   notes?: string[];
 };
 
+/** The catalog is whatever is in the database. There used to be a set of
+ *  recipes shipped in public/data/recipes.json that got merged in here, but
+ *  they were sample data, and keeping two sources meant every read, save and
+ *  delete had to reason about which one a recipe came from. */
 export async function fetchRecipes(): Promise<Recipe[]> {
-  const res = await fetch("/data/recipes.json");
-  if (!res.ok) throw new Error(`Couldn't load recipes (${res.status})`);
-  return (await res.json()) as Recipe[];
+  const res = await fetch("/api/recipes", { headers: { accept: "application/json" } });
+  const body: unknown = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const message = (body as { error?: string })?.error;
+    throw new Error(message ?? `Couldn't load recipes (${res.status})`);
+  }
+
+  const recipes = (body as { recipes?: unknown })?.recipes;
+  return Array.isArray(recipes) ? (recipes as Recipe[]) : [];
+}
+
+/** Builds a Recipe from fields that are all strings — which is what both the
+ *  form and the parsers produce. Empty fields are dropped rather than saved as
+ *  "" or 0, since every field but id and title is optional and the rest of the
+ *  app tests for presence.
+ *
+ *  A quantity that isn't a number is kept as written: "a splash" and "to taste"
+ *  are legitimate amounts, and losing them would be worse than not scaling
+ *  them. */
+export function assembleRecipe(fields: {
+  id: string;
+  title: string;
+  time?: string;
+  servings?: string;
+  tags?: string[];
+  ingredients?: { qty: string; unit: string; name: string }[];
+  steps?: string[];
+  notes?: string[];
+}): Recipe {
+  const number = (value?: string) => {
+    const text = value?.trim() ?? "";
+    return text !== "" && Number.isFinite(Number(text)) ? Number(text) : undefined;
+  };
+
+  const recipe: Recipe = { id: fields.id.trim(), title: fields.title.trim() };
+
+  if (fields.tags?.length) recipe.tags = fields.tags;
+
+  const time = number(fields.time);
+  if (time !== undefined) recipe.time = time;
+
+  const servings = number(fields.servings);
+  if (servings !== undefined) recipe.servings = servings;
+
+  const ingredients = (fields.ingredients ?? [])
+    .filter((row) => row.name.trim() !== "")
+    .map((row) => ({
+      qty: number(row.qty) ?? row.qty.trim(),
+      unit: row.unit.trim(),
+      name: row.name.trim(),
+    }));
+  if (ingredients.length) recipe.ingredients = ingredients;
+
+  const steps = (fields.steps ?? []).map((s) => s.trim()).filter(Boolean);
+  if (steps.length) recipe.steps = steps;
+
+  const notes = (fields.notes ?? []).map((n) => n.trim()).filter(Boolean);
+  if (notes.length) recipe.notes = notes;
+
+  return recipe;
+}
+
+export type SaveResult = { ok: true } | { ok: false; error: string; unauthorized?: boolean };
+
+/** Trades the catalog key for a session cookie. Typed once per device; after
+ *  this the browser attaches it and nothing else has to know the key. */
+export async function authorize(key: string): Promise<SaveResult> {
+  try {
+    return await readResult(
+      await fetch("/api/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ key }),
+      }),
+    );
+  } catch {
+    return { ok: false, error: "Couldn't reach the catalog — you may be offline." };
+  }
+}
+
+export async function signOut(): Promise<void> {
+  try {
+    await fetch("/api/session", { method: "DELETE" });
+  } catch {
+    /* nothing to do — the cookie expires on its own */
+  }
+}
+
+/** Shared by save and delete: read the body as text first so a response that
+ *  isn't the API's own JSON — a platform error page, the SPA's index.html —
+ *  reports what actually came back instead of a parse failure. */
+async function readResult(res: Response): Promise<SaveResult> {
+  const text = await res.text();
+  let body: { error?: string } = {};
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return { ok: false, error: `The catalog returned ${res.status}, not JSON.` };
+  }
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: body.error ?? `Failed (${res.status}).`,
+      // 401 is the one failure the app can do something about: ask for the key.
+      unauthorized: res.status === 401,
+    };
+  }
+  return { ok: true };
+}
+
+export async function saveRecipe(recipe: Recipe): Promise<SaveResult> {
+  try {
+    const res = await fetch("/api/recipes", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(recipe),
+    });
+    return await readResult(res);
+  } catch {
+    return { ok: false, error: "Couldn't reach the catalog — you may be offline." };
+  }
+}
+
+export async function deleteRecipe(id: string): Promise<SaveResult> {
+  try {
+    const res = await fetch(`/api/recipes?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    return await readResult(res);
+  } catch {
+    return { ok: false, error: "Couldn't reach the catalog — you may be offline." };
+  }
 }
 
 const GLYPHS: Record<string, string> = {

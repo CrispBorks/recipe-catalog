@@ -2,33 +2,46 @@ import * as React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   CheckIcon,
+  Loader2Icon,
   MinusIcon,
   PlusIcon,
   PrinterIcon,
   Share2Icon,
+  Trash2Icon,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackLink, PageShell, SiteFooter } from "@/components/page-shell";
+import { CatalogKeyPrompt } from "@/components/catalog-key-prompt";
+import { SegmentedControl } from "@/components/segmented-control";
 import { useRecipes } from "@/hooks/use-recipes";
 import {
+  authorize,
+  deleteRecipe,
   extractYouTubeId,
   formatQty,
   scaleIngredient,
   splitOnUrls,
   type Ingredient,
+  type Recipe,
 } from "@/lib/recipes";
 import { addIngredients } from "@/lib/shopping-list";
-import {
-  convertIngredient,
-  formatAmount,
-  useUnitSystem,
-  type UnitSystem,
-} from "@/lib/units";
+import { convertIngredient, formatAmount, useUnitSystem } from "@/lib/units";
 import { cn } from "@/lib/utils";
 
 export function RecipePage() {
@@ -211,7 +224,15 @@ export function RecipePage() {
               </div>
             </div>
 
-            <UnitToggle value={unitSystem} onChange={setUnitSystem} />
+            <SegmentedControl
+              label="Measurement units"
+              value={unitSystem}
+              onChange={setUnitSystem}
+              options={[
+                { value: "imperial", label: "Imperial" },
+                { value: "metric", label: "Metric" },
+              ]}
+            />
           </div>
 
           <h2 className="label-mono border-b border-border pb-2 text-muted-foreground">
@@ -370,47 +391,103 @@ export function RecipePage() {
         </section>
       )}
 
+      <DangerZone recipe={recipe} />
+
       <SiteFooter />
     </PageShell>
   );
 }
 
-function UnitToggle({
-  value,
-  onChange,
-}: {
-  value: UnitSystem;
-  onChange: (next: UnitSystem) => void;
-}) {
-  const options: [UnitSystem, string][] = [
-    ["imperial", "Imperial"],
-    ["metric", "Metric"],
-  ];
+/** Last thing on the page, after the method and the notes — you should have to
+ *  travel to reach it, and never meet it on the way to something else. */
+function DangerZone({ recipe }: { recipe: Recipe }) {
+  const navigate = useNavigate();
+  const { refresh } = useRecipes();
+  const [catalogKey, setCatalogKey] = React.useState("");
+  const [needsKey, setNeedsKey] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+
+  const remove = async () => {
+    setDeleting(true);
+    const result = await deleteRecipe(recipe.id);
+    setDeleting(false);
+
+    if (!result.ok) {
+      // Not signed in on this device yet — ask, rather than reporting an error
+      // for something the next few seconds can fix.
+      if (result.unauthorized) {
+        setNeedsKey(true);
+        return;
+      }
+      toast.error(result.error);
+      return;
+    }
+
+    refresh();
+    // Leaving first: staying would render the "not in the drawer" fallback for
+    // the recipe just deleted, which reads like something went wrong.
+    navigate("/");
+    toast.success(`"${recipe.title}" deleted.`);
+  };
+
+  const submitKey = async () => {
+    setDeleting(true);
+    const result = await authorize(catalogKey.trim());
+    setDeleting(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    setNeedsKey(false);
+    setCatalogKey("");
+    await remove();
+  };
 
   return (
-    <div
-      role="group"
-      aria-label="Measurement units"
-      className="flex items-center rounded-md border border-border bg-card p-0.5"
-    >
-      {options.map(([system, label]) => (
-        <button
-          key={system}
-          type="button"
-          aria-pressed={value === system}
-          onClick={() => onChange(system)}
-          className={cn(
-            "label-mono rounded-sm px-2.5 py-1 transition-colors",
-            "focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
-            value === system
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
+    <section className="mt-16 border-t border-destructive/30 pt-6">
+      <h2 className="label-mono text-muted-foreground">Danger zone</h2>
+
+      <div className="mt-4 flex flex-col gap-3">
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" className="w-fit" disabled={deleting}>
+              {deleting ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
+              {deleting ? "Deleting…" : "Delete recipe"}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete "{recipe.title}"?</AlertDialogTitle>
+              <AlertDialogDescription>
+                It's removed from the catalog on every device, and there's no
+                undo. Anything from this recipe already in your shopping list
+                stays there.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep it</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={remove}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                Delete it
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {needsKey && (
+          <CatalogKeyPrompt
+            value={catalogKey}
+            onChange={setCatalogKey}
+            busy={deleting}
+            onSubmit={() => void submitKey()}
+            action="Delete"
+          />
+        )}
+      </div>
+    </section>
   );
 }
 

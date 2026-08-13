@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useFieldArray, useForm } from "react-hook-form";
-import { CopyIcon, DownloadIcon, PlusIcon, XIcon } from "lucide-react";
+import { BookmarkIcon, Loader2Icon, PlusIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -19,8 +19,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BackLink, PageShell, SiteFooter } from "@/components/page-shell";
+import { CatalogKeyPrompt } from "@/components/catalog-key-prompt";
+import { ImportPanel } from "@/components/import-panel";
+import { PasteRecipes } from "@/components/paste-recipes";
+import { SegmentedControl } from "@/components/segmented-control";
+import { Link } from "react-router-dom";
 import { useRecipes } from "@/hooks/use-recipes";
-import type { Recipe } from "@/lib/recipes";
+import { assembleRecipe, authorize, saveRecipe, type Recipe } from "@/lib/recipes";
+import type { ParsedRecipe } from "@/lib/parse-recipe-text";
 import { cn } from "@/lib/utils";
 
 const KNOWN_TAGS = [
@@ -63,13 +69,23 @@ function slugify(text: string) {
 }
 
 export function AddRecipePage() {
-  const { recipes } = useRecipes();
+  const { recipes, refresh } = useRecipes();
+  const [catalogKey, setCatalogKey] = React.useState("");
+  const [needsKey, setNeedsKey] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [saved, setSaved] = React.useState<Recipe | null>(null);
   const [tags, setTags] = React.useState<string[]>([]);
   const [customTags, setCustomTags] = React.useState<string[]>([]);
+  const [tab, setTab] = React.useState<"build" | "json">("build");
   const [newTag, setNewTag] = React.useState("");
-  const [generated, setGenerated] = React.useState<Recipe | null>(null);
   const idTouched = React.useRef(false);
-  const outputRef = React.useRef<HTMLDivElement>(null);
+  const formRef = React.useRef<HTMLDivElement>(null);
+  /** What to save again once the key has been typed in.
+   *
+   *  The recipes, not a closure over them: a closure captures the key state
+   *  from the render that created it, which is the render *before* the key was
+   *  typed, so retrying would never see it. */
+  const pending = React.useRef<Recipe[] | null>(null);
 
   const form = useForm<FormValues>({ defaultValues: EMPTY, mode: "onSubmit" });
   const { register, handleSubmit, watch, setValue, reset, formState } = form;
@@ -106,77 +122,138 @@ export function AddRecipePage() {
     setNewTag("");
   };
 
-  const onSubmit = (values: FormValues) => {
-    const recipe: Recipe = {
-      id: values.id.trim(),
-      title: values.title.trim(),
-      ...(tags.length ? { tags } : {}),
-      ...(values.time.trim() ? { time: Number(values.time) } : {}),
-      ...(values.servings.trim() ? { servings: Number(values.servings) } : {}),
-    };
+  const buildRecipe = (values: FormValues): Recipe =>
+    assembleRecipe({
+      id: values.id,
+      title: values.title,
+      time: values.time,
+      servings: values.servings,
+      tags,
+      ingredients: values.ingredients,
+      steps: values.steps.map((s) => s.text),
+      notes: values.notes.map((n) => n.text),
+    });
 
-    const cleanedIngredients = values.ingredients
-      .filter((row) => row.name.trim())
-      .map((row) => {
-        const qtyRaw = row.qty.trim();
-        return {
-          qty:
-            qtyRaw === ""
-              ? ""
-              : Number.isFinite(Number(qtyRaw))
-                ? Number(qtyRaw)
-                : qtyRaw,
-          unit: row.unit.trim(),
-          name: row.name.trim(),
-        };
-      });
-    if (cleanedIngredients.length) recipe.ingredients = cleanedIngredients;
 
-    const cleanedSteps = values.steps.map((s) => s.text.trim()).filter(Boolean);
-    if (cleanedSteps.length) recipe.steps = cleanedSteps;
+  /** The one write path. Everything that saves goes through here, whether it's
+   *  one recipe from the form or a pasted batch.
+   *
+   *  Sequential rather than parallel: on failure it stops where it stopped, and
+   *  reporting "4 of 9 saved" is only honest if the other five were never
+   *  attempted. */
+  const save = async (list: Recipe | Recipe[]) => {
+    const recipes = Array.isArray(list) ? list : [list];
+    if (recipes.length === 0) return;
+    pending.current = recipes;
 
-    const cleanedNotes = values.notes.map((n) => n.text.trim()).filter(Boolean);
-    if (cleanedNotes.length) recipe.notes = cleanedNotes;
+    setSaving(true);
+    let done = 0;
+    let failure: { error: string; unauthorized?: boolean } | null = null;
+    for (const recipe of recipes) {
+      const result = await saveRecipe(recipe);
+      if (!result.ok) {
+        failure = result;
+        break;
+      }
+      done += 1;
+    }
+    setSaving(false);
 
-    setGenerated(recipe);
-    requestAnimationFrame(() =>
-      outputRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    if (done > 0) {
+      setNeedsKey(false);
+      setSaved(recipes[done - 1]);
+      refresh();
+    }
+
+    if (failure) {
+      // Not signed in on this device yet — ask, rather than reporting an error
+      // for something the next few seconds can fix.
+      if (failure.unauthorized) {
+        setNeedsKey(true);
+        if (done === 0) return;
+      }
+      toast.error(
+        done === 0
+          ? failure.error
+          : `Saved ${done} of ${recipes.length}, then stopped: ${failure.error}`,
+      );
+      return;
+    }
+
+    toast.success(
+      recipes.length === 1
+        ? `"${recipes[0].title}" is in the catalog.`
+        : `${done} recipes in the catalog.`,
     );
+  };
+
+  /** Signs in, then finishes whatever save was interrupted. */
+  const submitKey = async () => {
+    setSaving(true);
+    const result = await authorize(catalogKey.trim());
+    setSaving(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    setNeedsKey(false);
+    setCatalogKey("");
+    if (pending.current) await save(pending.current);
+  };
+
+  const onSave = (values: FormValues) => save(buildRecipe(values));
+
+  /** Saves a parsed recipe without a trip through the form. The preview above
+   *  the button has already shown exactly what will be saved, and anything
+   *  wrong can be fixed by re-saving the same id from the form afterwards. */
+  const saveParsed = (parsed: ParsedRecipe) =>
+    save(
+      assembleRecipe({
+        id: slugify(parsed.title),
+        title: parsed.title,
+        time: parsed.time,
+        servings: parsed.servings,
+        tags: parsed.tags,
+        ingredients: parsed.ingredients,
+        steps: parsed.steps,
+        notes: parsed.notes,
+      }),
+    );
+
+  /** Drops an imported recipe into the form fields and scrolls down to them,
+   *  for when the parse needs correcting before it's saved. */
+  const useParsed = (parsed: ParsedRecipe) => {
+    reset({
+      title: parsed.title,
+      id: slugify(parsed.title),
+      time: parsed.time,
+      servings: parsed.servings,
+      ingredients: parsed.ingredients.length
+        ? parsed.ingredients
+        : EMPTY.ingredients,
+      steps: parsed.steps.length
+        ? parsed.steps.map((text) => ({ text }))
+        : EMPTY.steps,
+      notes: parsed.notes.map((text) => ({ text })),
+    });
+    setCustomTags((prev) => [...new Set([...prev, ...parsed.tags])]);
+    setTags(parsed.tags);
+    idTouched.current = false;
+    requestAnimationFrame(() =>
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
+    toast.success("Filled in below — check it over, then save.");
   };
 
   const resetAll = () => {
     reset(EMPTY);
     setTags([]);
     setCustomTags([]);
-    setGenerated(null);
     idTouched.current = false;
   };
 
-  const copyJson = async () => {
-    if (!generated) return;
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(generated, null, 2));
-      toast.success("Recipe JSON copied");
-    } catch {
-      toast.error("Couldn't copy — select the text manually");
-    }
-  };
 
-  const downloadFull = () => {
-    if (!generated) return;
-    const blob = new Blob([JSON.stringify([...recipes, generated], null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "recipes.json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    toast.success("Downloaded updated recipes.json");
-  };
 
   return (
     <PageShell>
@@ -186,15 +263,50 @@ export function AddRecipePage() {
 
       <h1 className="display text-[30px] leading-none font-semibold">Add a recipe</h1>
       <p className="mt-3 max-w-[60ch] text-[14px] text-muted-foreground">
-        This page doesn't save anything by itself — it builds the JSON block.
-        You'll copy the result into{" "}
-        <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[13px]">
-          public/data/recipes.json
-        </code>{" "}
-        and commit it.
+        Paste a recipe or a link to one and it'll be read for you, or fill the
+        form in yourself. Either way, <strong>Save to catalog</strong> puts it
+        in the drawer straight away.
       </p>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="mt-8 flex flex-col gap-8">
+      <div className="mt-6">
+        <SegmentedControl
+          label="How to add recipes"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "build", label: "Build" },
+            { value: "json", label: "Paste JSON" },
+          ]}
+          className="w-fit"
+        />
+      </div>
+
+      {tab === "json" ? (
+        <div className="mt-6 flex flex-col gap-5">
+          <PasteRecipes existing={recipes} onSave={save} saving={saving} />
+          {needsKey && (
+            <CatalogKeyPrompt
+              value={catalogKey}
+              onChange={setCatalogKey}
+              busy={saving}
+              onSubmit={() => void submitKey()}
+            />
+          )}
+        </div>
+      ) : (
+      <>
+        <div className="mt-6">
+          <ImportPanel onUse={useParsed} onSave={saveParsed} saving={saving} />
+        </div>
+
+      {/* The form is always here, whether you're correcting an import or
+          typing from scratch — there's no mode to switch into. */}
+      <div ref={formRef} className="mt-10 flex items-center gap-3">
+        <h2 className="display shrink-0 text-lg font-semibold">Or fill it in</h2>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
+      <form onSubmit={handleSubmit(onSave)} className="mt-6 flex flex-col gap-8">
         <Section title="Recipe details">
           <div className="grid gap-4 sm:grid-cols-[2fr_1fr_1fr]">
             <Field label="Title" error={formState.errors.title?.message}>
@@ -445,7 +557,10 @@ export function AddRecipePage() {
         </Section>
 
         <div className="flex flex-wrap gap-2">
-          <Button type="submit">Generate recipe JSON</Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? <Loader2Icon className="animate-spin" /> : <BookmarkIcon />}
+            {saving ? "Saving…" : "Save to catalog"}
+          </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button type="button" variant="outline">
@@ -456,8 +571,8 @@ export function AddRecipePage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Clear everything in this form?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Anything you've typed will be lost. Generated JSON you've already
-                  copied is unaffected.
+                  Anything you've typed will be lost. Recipes already saved to
+                  the catalog are unaffected.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -467,35 +582,35 @@ export function AddRecipePage() {
             </AlertDialogContent>
           </AlertDialog>
         </div>
+
+        {needsKey && (
+          <CatalogKeyPrompt
+            value={catalogKey}
+            onChange={setCatalogKey}
+            busy={saving}
+            onSubmit={() => void submitKey()}
+          />
+        )}
       </form>
 
-      {generated && (
-        <div ref={outputRef} className="mt-10 rounded-lg border border-border bg-card p-5">
-          <h2 className="display text-xl font-semibold">
-            Add this to{" "}
-            <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[13px]">
-              public/data/recipes.json
-            </code>
-          </h2>
-          <p className="mt-2 text-[13px] text-muted-foreground">
-            {recipes.length
-              ? `Loaded ${recipes.length} existing recipe${recipes.length === 1 ? "" : "s"} — the download bundles this one in with all of them.`
-              : "Couldn't load the current recipes.json, so the download will contain just this recipe."}
+      {saved && (
+        <div className="mt-8 rounded-lg border border-status/40 bg-status/5 p-5">
+          <h2 className="display text-xl font-semibold">Saved to the catalog</h2>
+          <p className="mt-2 text-[14px] text-muted-foreground">
+            "{saved.title}" is in the drawer now.
           </p>
-          <pre className="mt-4 max-h-96 overflow-auto rounded-md border border-border bg-background p-4 font-mono text-[12px] leading-relaxed">
-            {JSON.stringify(generated, null, 2)}
-          </pre>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button onClick={copyJson}>
-              <CopyIcon />
-              Copy JSON block
+            <Button asChild>
+              <Link to={`/recipe/${saved.id}`}>Open the recipe</Link>
             </Button>
-            <Button variant="outline" onClick={downloadFull}>
-              <DownloadIcon />
-              Download full recipes.json
+            <Button variant="outline" onClick={() => { resetAll(); setSaved(null); }}>
+              Add another
             </Button>
           </div>
         </div>
+      )}
+
+      </>
       )}
 
       <SiteFooter />
@@ -551,3 +666,4 @@ function Field({
     </div>
   );
 }
+
