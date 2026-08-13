@@ -26,10 +26,10 @@ await page.waitForSelector('form');
 await page.getByRole('button', { name: 'Paste JSON' }).click();
 await page.waitForTimeout(200);
 
-// The export is about the saved catalog, so it doesn't wait on a paste
-const download = page.getByRole('button', { name: /Download all recipes/ });
-ok('export is offered before anything is pasted', await download.count() === 1);
-ok('export is enabled with an empty textarea', !(await download.isDisabled()));
+// There's no export button: GET /api/recipes already returns the whole
+// catalog as JSON, so a button would be a shortcut for an address.
+ok('no export button competing with the paste flow',
+   await page.getByRole('button', { name: /Download|Copy all/ }).count() === 0);
 
 // ---------- a clean paste ----------
 await page.getByRole('button', { name: 'Insert example' }).click();
