@@ -140,17 +140,24 @@ new route, not a change to this one.
 ## Adding your own recipes
 
 Use the built-in builder at `/add-recipe` — it validates the fields, checks the
-slug isn't already taken, and saves it to the catalog. Four ways in:
+slug isn't already taken, and saves it to the catalog.
 
-| Tab | What it takes | How reliable |
-| --- | --- | --- |
-| **Form** | Typed by hand | Exact |
-| **Link** | A recipe page URL | Exact where the site publishes JSON-LD, which most do |
-| **Paste text** | A wall of recipe text | Heuristic — always check it in the form |
-| **Paste JSON** | One or more recipes already in this format | Validated, with per-recipe errors |
+The page is one flow rather than a set of modes. An import panel sits above the
+form: paste a recipe's **text**, or a **link** to one, and it's read for you.
+The preview shows what was understood, and from there it's either straight into
+the catalog or down into the form to be corrected first — which is also where
+you start if you're typing one out by hand.
 
-Every route lands in the form first, so nothing is saved without a look. **Save
-to catalog** then writes it to the database and it shows up straight away.
+| Source | How reliable |
+| --- | --- |
+| **Link** | Exact where the site publishes JSON-LD, which most do |
+| **Text** | Heuristic — worth a look in the form |
+| **Form** | Exact |
+| **Paste JSON** (separate tab) | Validated, with per-recipe errors; also where the backup download lives |
+
+**Save to catalog** writes to the database and the recipe shows up straight
+away. There's no JSON to generate or commit — that button existed when the
+catalog was a file in the repo, and went when the database arrived.
 
 The catalog is whatever is in the database — there are no recipes in the repo.
 There used to be ten sample ones in `public/data/recipes.json` that got merged
