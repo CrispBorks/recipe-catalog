@@ -2,7 +2,7 @@ node_modules/
 dist/
 .vercel/
 *.local
+.DS_Store
 
 # test artefacts
 tests/browser/screenshots/
-.DS_Store
