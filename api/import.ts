@@ -33,6 +33,28 @@ const MAX_BYTES = 4_000_000;
 const BLOCKED_HOST =
   /^(?:localhost|\[?::1\]?|0\.0\.0\.0|127\.|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.)|\.(?:local|internal)$/i;
 
+/** What the site's status code means for someone trying to save a recipe. The
+ *  paywall cases are worth naming: nothing about this importer can get past
+ *  one, and knowing that saves you retrying. */
+function describeStatus(status: number): string {
+  if (status === 401 || status === 402) {
+    return "That recipe is behind a paywall, so the page can't be read without your subscription. Open it in your browser and use the Paste text tab.";
+  }
+  if (status === 403) {
+    return "The site refused the request — some publishers block anything that isn't a person browsing. Copy the recipe text and use the Paste text tab.";
+  }
+  if (status === 404 || status === 410) {
+    return "There's no page at that address. Check the link.";
+  }
+  if (status === 429) {
+    return "The site is rate-limiting requests. Wait a minute and try again.";
+  }
+  if (status >= 500) {
+    return `The site is having problems (${status}). Try again later.`;
+  }
+  return `The site returned ${status}, so the recipe couldn't be read. Paste the recipe text instead.`;
+}
+
 function validate(raw: string): { url: URL } | { error: string } {
   let url: URL;
   try {
@@ -96,9 +118,7 @@ export default async function handler(req: Req, res: Res) {
     });
 
     if (!response.ok) {
-      res.status(502).json({
-        error: `The site returned ${response.status}. It may be blocking automated requests — paste the recipe text instead.`,
-      });
+      res.status(502).json({ error: describeStatus(response.status) });
       return;
     }
 

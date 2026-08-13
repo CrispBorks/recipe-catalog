@@ -46,7 +46,7 @@ shadcn's semantic names, so the look can be changed in one file.
 recipe-catalog/
 ├── index.html               # Vite entry
 ├── api/import.ts            # serverless: reads a recipe off a URL (no API key)
-├── api/recipes.ts           # serverless: recipes saved from the app
+├── api/recipes.ts           # serverless: recipes saved from the app (Postgres)
 ├── public/data/recipes.json # recipe data — edit or extend this
 ├── src/
 │   ├── App.tsx              # routes (incl. redirects for pre-rewrite URLs)
@@ -83,11 +83,13 @@ deployment.
 exists only because a browser can't fetch another origin's HTML; there's no
 API key or paid service behind it, and it needs no configuration.
 
-`api/recipes.ts` stores recipes saved from the app. It needs two things set up
-once, both on Vercel's free tier:
+`api/recipes.ts` stores recipes saved from the app, in Postgres. It needs two
+things set up once, both on free tiers:
 
-1. **A Blob store.** Vercel dashboard → Storage → create a Blob store and
-   connect it to the project. That sets `BLOB_READ_WRITE_TOKEN` for you.
+1. **A Postgres database.** Vercel dashboard → Storage → Neon (Vercel Postgres
+   is Neon now; `@vercel/postgres` is deprecated). Connect it to the project
+   and it sets `DATABASE_URL` for you. The `recipes` table is created on first
+   use — there's no migration step to run.
 2. **`CATALOG_WRITE_KEY`** as an environment variable — any passphrase. Reads
    are public like the rest of the site, but without this anyone who found the
    URL could write to your catalog, so saving refuses to work until it's set.
@@ -95,6 +97,18 @@ once, both on Vercel's free tier:
 
 Skip both and everything else still works; the Save button just reports that
 saving isn't configured.
+
+The schema is one table:
+
+```sql
+recipes(id text primary key, title text not null, tags jsonb,
+        time_minutes integer, servings integer,
+        ingredients jsonb, steps jsonb, notes jsonb,
+        added_at timestamptz, updated_at timestamptz)
+```
+
+Room for what comes next — a pantry, a cook log, photos — is a new table and a
+new route, not a change to this one.
 
 **Send to Reminders** relies on `navigator.share`, which requires HTTPS.
 
@@ -112,7 +126,7 @@ file) to drop into `public/data/recipes.json`. Four ways in:
 | **Paste JSON** | One or more recipes already in this format | Validated, with per-recipe errors |
 
 All of them land in the form, so nothing is saved without a look first. From
-there, **Save to catalog** writes the recipe to the Blob store and it appears
+there, **Save to catalog** writes the recipe to the database and it appears
 straight away; **Generate recipe JSON** gives you the block to commit into
 `public/data/recipes.json` instead.
 
