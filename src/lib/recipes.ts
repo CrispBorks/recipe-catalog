@@ -83,7 +83,31 @@ export function assembleRecipe(fields: {
   return recipe;
 }
 
-export type SaveResult = { ok: true } | { ok: false; error: string };
+export type SaveResult = { ok: true } | { ok: false; error: string; unauthorized?: boolean };
+
+/** Trades the catalog key for a session cookie. Typed once per device; after
+ *  this the browser attaches it and nothing else has to know the key. */
+export async function authorize(key: string): Promise<SaveResult> {
+  try {
+    return await readResult(
+      await fetch("/api/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ key }),
+      }),
+    );
+  } catch {
+    return { ok: false, error: "Couldn't reach the catalog — you may be offline." };
+  }
+}
+
+export async function signOut(): Promise<void> {
+  try {
+    await fetch("/api/session", { method: "DELETE" });
+  } catch {
+    /* nothing to do — the cookie expires on its own */
+  }
+}
 
 /** Shared by save and delete: read the body as text first so a response that
  *  isn't the API's own JSON — a platform error page, the SPA's index.html —
@@ -96,17 +120,22 @@ async function readResult(res: Response): Promise<SaveResult> {
   } catch {
     return { ok: false, error: `The catalog returned ${res.status}, not JSON.` };
   }
-  if (!res.ok) return { ok: false, error: body.error ?? `Failed (${res.status}).` };
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: body.error ?? `Failed (${res.status}).`,
+      // 401 is the one failure the app can do something about: ask for the key.
+      unauthorized: res.status === 401,
+    };
+  }
   return { ok: true };
 }
 
-/** Saves a recipe to the store. The key is the one from CATALOG_WRITE_KEY;
- *  it's kept in localStorage so it's asked for once per device. */
-export async function saveRecipe(recipe: Recipe, key: string): Promise<SaveResult> {
+export async function saveRecipe(recipe: Recipe): Promise<SaveResult> {
   try {
     const res = await fetch("/api/recipes", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-catalog-key": key },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify(recipe),
     });
     return await readResult(res);
@@ -115,11 +144,10 @@ export async function saveRecipe(recipe: Recipe, key: string): Promise<SaveResul
   }
 }
 
-export async function deleteRecipe(id: string, key: string): Promise<SaveResult> {
+export async function deleteRecipe(id: string): Promise<SaveResult> {
   try {
     const res = await fetch(`/api/recipes?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
-      headers: { "x-catalog-key": key },
     });
     return await readResult(res);
   } catch {

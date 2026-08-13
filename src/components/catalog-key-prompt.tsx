@@ -2,9 +2,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-/** Asked for once per device, then kept in localStorage. Rendered wherever a
- *  change to the catalog can start from, so the place you're working is the
- *  place that asks. */
+/** Shown only when the catalog refuses a write, which happens once per device
+ *  and then not again — the key is traded for a session cookie. Rendered
+ *  wherever a change can start from, so the place you're working is the place
+ *  that asks. */
 export function CatalogKeyPrompt({
   value,
   onChange,
@@ -30,7 +31,7 @@ export function CatalogKeyPrompt({
         <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[12px]">
           CATALOG_WRITE_KEY
         </code>
-        . It's asked for once and remembered on this device.
+        . Enter it once and this device stays signed in.
       </p>
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <Input

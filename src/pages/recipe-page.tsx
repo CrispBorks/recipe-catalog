@@ -31,6 +31,7 @@ import { CatalogKeyPrompt } from "@/components/catalog-key-prompt";
 import { SegmentedControl } from "@/components/segmented-control";
 import { useRecipes } from "@/hooks/use-recipes";
 import {
+  authorize,
   deleteRecipe,
   extractYouTubeId,
   formatQty,
@@ -39,12 +40,6 @@ import {
   type Ingredient,
   type Recipe,
 } from "@/lib/recipes";
-import {
-  forgetCatalogKey,
-  isWrongKey,
-  readCatalogKey,
-  rememberCatalogKey,
-} from "@/lib/catalog-key";
 import { addIngredients } from "@/lib/shopping-list";
 import { convertIngredient, formatAmount, useUnitSystem } from "@/lib/units";
 import { cn } from "@/lib/utils";
@@ -408,36 +403,45 @@ export function RecipePage() {
 function DangerZone({ recipe }: { recipe: Recipe }) {
   const navigate = useNavigate();
   const { refresh } = useRecipes();
-  const [catalogKey, setCatalogKey] = React.useState(readCatalogKey);
+  const [catalogKey, setCatalogKey] = React.useState("");
   const [needsKey, setNeedsKey] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
 
   const remove = async () => {
-    const key = catalogKey.trim() || readCatalogKey();
-    if (!key) {
-      setNeedsKey(true);
-      return;
-    }
-
     setDeleting(true);
-    const result = await deleteRecipe(recipe.id, key);
+    const result = await deleteRecipe(recipe.id);
     setDeleting(false);
 
     if (!result.ok) {
-      if (isWrongKey(result.error)) {
-        forgetCatalogKey();
+      // Not signed in on this device yet — ask, rather than reporting an error
+      // for something the next few seconds can fix.
+      if (result.unauthorized) {
         setNeedsKey(true);
+        return;
       }
       toast.error(result.error);
       return;
     }
 
-    rememberCatalogKey(key);
     refresh();
     // Leaving first: staying would render the "not in the drawer" fallback for
     // the recipe just deleted, which reads like something went wrong.
     navigate("/");
     toast.success(`"${recipe.title}" deleted.`);
+  };
+
+  const submitKey = async () => {
+    setDeleting(true);
+    const result = await authorize(catalogKey.trim());
+    setDeleting(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    setNeedsKey(false);
+    setCatalogKey("");
+    await remove();
   };
 
   return (
@@ -478,7 +482,7 @@ function DangerZone({ recipe }: { recipe: Recipe }) {
             value={catalogKey}
             onChange={setCatalogKey}
             busy={deleting}
-            onSubmit={remove}
+            onSubmit={() => void submitKey()}
             action="Delete"
           />
         )}

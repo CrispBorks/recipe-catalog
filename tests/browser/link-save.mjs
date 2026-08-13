@@ -10,10 +10,17 @@ const RECIPE={title:"Mascarpone Whipped Cream",time:"10",servings:"4",tags:["des
  sourceUrl:"https://example.com/x",sourceName:"Julianne"};
 
 await page.route('**/api/import*', r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(RECIPE)}));
+let signedIn=false;
+await page.route('**/api/session', r=>{
+  const body=JSON.parse(r.request().postData()||'{}');
+  if(body.key!==KEY) return r.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'Wrong key.'})});
+  signedIn=true;
+  return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true})});
+});
 await page.route('**/api/recipes*', async r=>{
   const req=r.request();
   if(req.method()==='GET') return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({recipes:store})});
-  if(req.headers()['x-catalog-key']!==KEY) return r.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'Wrong key.'})});
+  if(!signedIn) return r.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'Wrong key.'})});
   const rec=JSON.parse(req.postData()); store=[...store.filter(x=>x.id!==rec.id),rec];
   return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({recipe:rec,saved:rec.id})});
 });

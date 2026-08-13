@@ -6,12 +6,21 @@ const errors=[]; page.on('pageerror',e=>errors.push(e.message));
 const KEY='letmein';
 let store=[];
 let posts=0;
+// Writes are refused until /api/session has been given the right key — the
+// browser carries the session from there, so nothing sends the key again.
+let signedIn=false;
+await page.route('**/api/session', route => {
+  const body=JSON.parse(route.request().postData()||'{}');
+  if (body.key!==KEY) return route.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'Wrong key.'})});
+  signedIn=true;
+  return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true})});
+});
 await page.route('**/api/recipes*', async route => {
   const req=route.request();
   if (req.method()==='GET') return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({recipes:store})});
   if (req.method()==='POST') {
     posts++;
-    if (req.headers()['x-catalog-key']!==KEY)
+    if (!signedIn)
       return route.fulfill({status:401,contentType:'application/json',body:JSON.stringify({error:'Wrong key.'})});
     const r=JSON.parse(req.postData());
     store=[...store.filter(x=>x.id!==r.id),{...r,addedAt:'2026-08-13T00:00:00Z'}];
@@ -31,8 +40,9 @@ await page.getByRole('textbox',{name:'Step 1',exact:true}).fill('Chop and simmer
 ok('Save button present', await page.getByRole('button',{name:/Save to catalog/}).count()===1);
 await page.getByRole('button',{name:/Save to catalog/}).click();
 await page.waitForTimeout(400);
-ok('asks for the key when there is none', await page.getByLabel('Catalog key').count()===1);
-ok('no request sent without a key', posts===0, posts);
+await page.waitForSelector('#catalog-key');
+ok('asks for the key when not signed in', await page.getByLabel('Catalog key').count()===1);
+ok('the key is only asked for after a refused save', posts===1, posts);
 
 // wrong key first
 await page.getByLabel('Catalog key').fill('nope');
@@ -68,7 +78,7 @@ await page.getByRole('textbox',{name:'Ingredient 1',exact:true}).fill('onion');
 await page.getByRole('textbox',{name:'Step 1',exact:true}).fill('Fry.');
 await page.getByRole('button',{name:/Save to catalog/}).click();
 await page.waitForSelector('text=Saved to the catalog');
-ok('key remembered — no second prompt', await page.getByLabel('Catalog key').count()===0);
+ok('session persists — no second prompt', await page.getByLabel('Catalog key').count()===0);
 ok('two recipes stored', store.length===2, store.map(r=>r.id));
 
 console.log('\nerrors:',errors.length?errors:'none');
