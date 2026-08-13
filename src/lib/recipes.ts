@@ -15,10 +15,46 @@ export type Recipe = {
   notes?: string[];
 };
 
+/** The catalog is whatever is in the database. There used to be a set of
+ *  recipes shipped in public/data/recipes.json that got merged in here, but
+ *  they were sample data, and keeping two sources meant every read, save and
+ *  delete had to reason about which one a recipe came from. */
 export async function fetchRecipes(): Promise<Recipe[]> {
-  const res = await fetch("/data/recipes.json");
-  if (!res.ok) throw new Error(`Couldn't load recipes (${res.status})`);
-  return (await res.json()) as Recipe[];
+  const res = await fetch("/api/recipes", { headers: { accept: "application/json" } });
+  const body: unknown = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const message = (body as { error?: string })?.error;
+    throw new Error(message ?? `Couldn't load recipes (${res.status})`);
+  }
+
+  const recipes = (body as { recipes?: unknown })?.recipes;
+  return Array.isArray(recipes) ? (recipes as Recipe[]) : [];
+}
+
+export type SaveResult = { ok: true } | { ok: false; error: string };
+
+/** Saves a recipe to the store. The key is the one from CATALOG_WRITE_KEY;
+ *  it's kept in localStorage so it's asked for once per device. */
+export async function saveRecipe(recipe: Recipe, key: string): Promise<SaveResult> {
+  try {
+    const res = await fetch("/api/recipes", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-catalog-key": key },
+      body: JSON.stringify(recipe),
+    });
+    const text = await res.text();
+    let body: { error?: string } = {};
+    try {
+      body = JSON.parse(text);
+    } catch {
+      return { ok: false, error: `The catalog returned ${res.status}, not JSON.` };
+    }
+    if (!res.ok) return { ok: false, error: body.error ?? `Save failed (${res.status}).` };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Couldn't reach the catalog — you may be offline." };
+  }
 }
 
 const GLYPHS: Record<string, string> = {

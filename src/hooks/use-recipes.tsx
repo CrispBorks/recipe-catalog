@@ -6,37 +6,44 @@ type RecipesState = {
   recipes: Recipe[];
   loading: boolean;
   error: string | null;
+  /** Re-reads the catalog, so a saved recipe shows up without a reload. */
+  refresh: () => void;
 };
 
 const RecipesContext = React.createContext<RecipesState>({
   recipes: [],
   loading: true,
   error: null,
+  refresh: () => {},
 });
 
 export function RecipesProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = React.useState<RecipesState>({
+  const [loaded, setLoaded] = React.useState<Omit<RecipesState, "refresh">>({
     recipes: [],
     loading: true,
     error: null,
   });
+  const [nonce, setNonce] = React.useState(0);
 
   React.useEffect(() => {
     let cancelled = false;
     fetchRecipes()
       .then((recipes) => {
-        if (!cancelled) setState({ recipes, loading: false, error: null });
+        if (!cancelled) setLoaded({ recipes, loading: false, error: null });
       })
       .catch((err: Error) => {
         if (!cancelled)
-          setState({ recipes: [], loading: false, error: err.message });
+          setLoaded({ recipes: [], loading: false, error: err.message });
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [nonce]);
 
-  return <RecipesContext value={state}>{children}</RecipesContext>;
+  const refresh = React.useCallback(() => setNonce((n) => n + 1), []);
+  const value = React.useMemo(() => ({ ...loaded, refresh }), [loaded, refresh]);
+
+  return <RecipesContext value={value}>{children}</RecipesContext>;
 }
 
 export function useRecipes() {

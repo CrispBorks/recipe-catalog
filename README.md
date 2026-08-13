@@ -45,7 +45,8 @@ shadcn's semantic names, so the look can be changed in one file.
 ```
 recipe-catalog/
 ├── index.html               # Vite entry
-├── public/data/recipes.json # recipe data — edit or extend this
+├── api/import.ts            # serverless: reads a recipe off a URL (no API key)
+├── api/recipes.ts           # serverless: recipes saved from the app (Postgres)
 ├── src/
 │   ├── App.tsx              # routes (incl. redirects for pre-rewrite URLs)
 │   ├── index.css            # design tokens, light + dark
@@ -69,18 +70,69 @@ Other scripts: `npm run build` (typechecks, then builds to `dist/`),
 ## Deploying
 
 The app is a static single-page build, deployed on Vercel. `vercel.json`
-rewrites every path to `index.html` so deep links like `/recipe/lemon-garlic-roast-chicken`
-resolve on a hard refresh — any host needs that same SPA fallback.
+rewrites every path except `/api/*` to `index.html` so deep links like
+`/recipe/lemon-garlic-roast-chicken` resolve on a hard refresh — any host needs
+that same SPA fallback.
+
+Two serverless functions live in `api/`. Neither route is served by `npm run
+dev` — use `vercel dev` to exercise them locally, or test on a preview
+deployment.
+
+`api/import.ts` fetches a recipe page and reads its schema.org JSON-LD. It
+exists only because a browser can't fetch another origin's HTML; there's no
+API key or paid service behind it, and it needs no configuration.
+
+`api/recipes.ts` stores recipes saved from the app, in Postgres. It needs two
+things set up once, both on free tiers:
+
+1. **A Postgres database.** Vercel dashboard → Storage → Neon (Vercel Postgres
+   is Neon now; `@vercel/postgres` is deprecated). Connect it to the project
+   and it sets `DATABASE_URL` for you. The `recipes` table is created on first
+   use — there's no migration step to run.
+2. **`CATALOG_WRITE_KEY`** as an environment variable — any passphrase. Reads
+   are public like the rest of the site, but without this anyone who found the
+   URL could write to your catalog, so saving refuses to work until it's set.
+   The app asks for it once and remembers it per device.
+
+Skip both and everything else still works; the Save button just reports that
+saving isn't configured.
+
+The schema is one table:
+
+```sql
+recipes(id text primary key, title text not null, tags jsonb,
+        time_minutes integer, servings integer,
+        ingredients jsonb, steps jsonb, notes jsonb,
+        added_at timestamptz, updated_at timestamptz)
+```
+
+Room for what comes next — a pantry, a cook log, photos — is a new table and a
+new route, not a change to this one.
 
 **Send to Reminders** relies on `navigator.share`, which requires HTTPS.
 
 ## Adding your own recipes
 
 Use the built-in builder at `/add-recipe` — it validates the fields, checks the
-slug isn't already taken, and hands back the JSON block (or the whole updated
-file) to drop into `public/data/recipes.json`.
+slug isn't already taken, and saves it to the catalog. Four ways in:
 
-To write one by hand:
+| Tab | What it takes | How reliable |
+| --- | --- | --- |
+| **Form** | Typed by hand | Exact |
+| **Link** | A recipe page URL | Exact where the site publishes JSON-LD, which most do |
+| **Paste text** | A wall of recipe text | Heuristic — always check it in the form |
+| **Paste JSON** | One or more recipes already in this format | Validated, with per-recipe errors |
+
+Every route lands in the form first, so nothing is saved without a look. **Save
+to catalog** then writes it to the database and it shows up straight away.
+
+The catalog is whatever is in the database — there are no recipes in the repo.
+There used to be ten sample ones in `public/data/recipes.json` that got merged
+in at read time; they were demo data, and keeping two sources meant every read
+and write had to reason about which one a recipe came from. **Download a
+backup** on the builder page is how you take a copy of everything.
+
+A recipe is shaped like this — the same JSON the **Paste JSON** tab accepts:
 
 ```json
 {
