@@ -60,49 +60,98 @@ function asText(value: unknown): string {
 const typesOf = (node: Node): string[] =>
   asArray(node["@type"]).map((t) => String(t).toLowerCase());
 
-const isRecipe = (value: unknown): value is Node =>
-  !!value && typeof value === "object" && typesOf(value as Node).includes("recipe");
+/** A schema.org Recipe declares itself. One lifted into an app's own state
+ *  often loses "@type" on the way, but recipeIngredient is unambiguous enough
+ *  to stand in for it — nothing else uses that name. */
+const isRecipe = (value: unknown): value is Node => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const node = value as Node;
+  if (typesOf(node).includes("recipe")) return true;
+  return Array.isArray(node.recipeIngredient) && node.recipeIngredient.length > 0;
+};
 
 /** Walks a parsed JSON-LD document looking for the Recipe node. Sites nest it
  *  in every imaginable way: bare, in an array, inside "@graph", or hanging off
  *  a WebPage's "mainEntity". */
-function findRecipe(value: unknown, depth = 0): Node | null {
-  if (depth > 6 || !value || typeof value !== "object") return null;
+function findRecipe(value: unknown, depth = 0, maxDepth = 6): Node | null {
+  if (depth > maxDepth || !value || typeof value !== "object") return null;
   if (isRecipe(value)) return value;
 
   if (Array.isArray(value)) {
     for (const item of value) {
-      const found = findRecipe(item, depth + 1);
+      const found = findRecipe(item, depth + 1, maxDepth);
       if (found) return found;
     }
     return null;
   }
 
+  // Named keys first, then everything else. JSON-LD only ever nests through
+  // the named ones; an app payload nests through keys nobody can predict, so
+  // past that the search has to be exhaustive.
+  const node = value as Node;
   for (const key of ["@graph", "mainEntity", "mainEntityOfPage", "hasPart", "itemListElement"]) {
-    const found = findRecipe((value as Node)[key], depth + 1);
+    const found = findRecipe(node[key], depth + 1, maxDepth);
     if (found) return found;
+  }
+  if (maxDepth > 6) {
+    for (const nested of Object.values(node)) {
+      const found = findRecipe(nested, depth + 1, maxDepth);
+      if (found) return found;
+    }
   }
   return null;
 }
 
-/** Every <script type="application/ld+json"> block, parsed, bad ones skipped —
- *  a malformed block on the page shouldn't hide a good one further down. */
+/** Recipe data embedded in the page as JSON, wherever it happens to sit.
+ *
+ *  <script type="application/ld+json"> is the standard place and is tried
+ *  first. But a site built on Next or Nuxt often ships the very same
+ *  schema.org object inside its hydration payload instead — same data, a
+ *  different wrapper — and there's no reason to refuse to read it.
+ *
+ *  Bad blocks are skipped rather than fatal: one malformed script shouldn't
+ *  hide a good one further down the page. */
 export function findRecipeNode(html: string): Node | null {
-  const blocks = html.matchAll(
-    /<script[^>]+type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
-  );
+  const scripts = [
+    // Standard first: if a page publishes proper JSON-LD, that's the recipe it
+    // means to publish, not whatever its app state happens to hold.
+    ...html.matchAll(
+      /<script[^>]+type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+    ),
+    ...html.matchAll(
+      /<script[^>]+type\s*=\s*["']application\/json["'][^>]*>([\s\S]*?)<\/script>/gi,
+    ),
+    // Nuxt assigns rather than declaring a JSON script.
+    ...html.matchAll(/window\.__NUXT__\s*=\s*(\{[\s\S]*?\});?\s*<\/script>/gi),
+  ];
 
-  for (const [, body] of blocks) {
+  for (const [, body] of scripts) {
     let parsed: unknown;
     try {
-      parsed = JSON.parse(body.trim());
+      parsed = JSON.parse(stripWrapper(body));
     } catch {
       continue;
     }
-    const recipe = findRecipe(parsed);
+    // Depth is generous here: an app payload buries its data far deeper than
+    // JSON-LD ever nests.
+    const recipe = findRecipe(parsed, 0, 12);
     if (recipe) return recipe;
   }
   return null;
+}
+
+/** Older pages wrap inline script bodies in a CDATA section or an HTML
+ *  comment, both of which are invalid JSON. */
+function stripWrapper(body: string): string {
+  return body
+    .trim()
+    .replace(/^<!--/, "")
+    .replace(/-->$/, "")
+    .replace(/^\/\/\s*<!\[CDATA\[/, "")
+    .replace(/\/\/\s*\]\]>$/, "")
+    .replace(/^<!\[CDATA\[/, "")
+    .replace(/\]\]>$/, "")
+    .trim();
 }
 
 /** ISO 8601 durations: "PT1H30M", "PT45M", occasionally "P0DT1H0M". */

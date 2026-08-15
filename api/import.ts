@@ -11,7 +11,11 @@
  *  to resolve takes the whole function down with an opaque 500, while this way
  *  the reason comes back as a readable message. */
 async function loadMapper() {
-  return import("../src/lib/recipe-jsonld.js");
+  const [jsonld, microdata] = await Promise.all([
+    import("../src/lib/recipe-jsonld.js"),
+    import("../src/lib/recipe-microdata.js"),
+  ]);
+  return { ...jsonld, ...microdata };
 }
 
 /** Enough of Vercel's Node request/response to type this handler without
@@ -75,7 +79,10 @@ function validate(raw: string): { url: URL } | { error: string } {
 function describePage(
   html: string,
   url: string,
-  mapper: { findRecipeNode: (html: string) => Record<string, unknown> | null },
+  mapper: {
+    findRecipeNode: (html: string) => Record<string, unknown> | null;
+    recipeFromMicrodata: (html: string, url?: string) => unknown | null;
+  },
 ) {
   const blocks = [
     ...html.matchAll(
@@ -111,7 +118,8 @@ function describePage(
     url,
     title: html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ?? null,
     htmlBytes: html.length,
-    recipeFound: mapper.findRecipeNode(html) !== null,
+    recipeFoundInJson: mapper.findRecipeNode(html) !== null,
+    recipeFoundInMicrodata: mapper.recipeFromMicrodata(html) !== null,
     jsonLdBlocks: jsonLd,
     microdata: mentions(/itemtype\s*=\s*["']https?:\/\/schema\.org\/Recipe["']/i),
     rdfa: mentions(/typeof\s*=\s*["'][^"']*Recipe/i),
@@ -201,8 +209,14 @@ export default async function handler(req: Req, res: Res) {
     return;
   }
 
+  // JSON-LD first — a page publishing both means the same thing twice, and the
+  // JSON says it more precisely. Microdata is the fallback.
   const node = mapper.findRecipeNode(html);
-  if (!node) {
+  const recipe = node
+    ? mapper.recipeFromJsonLd(node, checked.url.toString())
+    : mapper.recipeFromMicrodata(html, checked.url.toString());
+
+  if (!recipe) {
     res.status(422).json({
       error:
         "That page doesn't publish its recipe in a readable format. Copy the recipe text and use the Paste text tab.",
@@ -210,7 +224,6 @@ export default async function handler(req: Req, res: Res) {
     return;
   }
 
-  const recipe = mapper.recipeFromJsonLd(node, checked.url.toString());
   if (recipe.ingredients.length === 0 && recipe.steps.length === 0) {
     res.status(422).json({
       error: "Found a recipe on that page but it had no ingredients or method.",
