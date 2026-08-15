@@ -71,6 +71,64 @@ function validate(raw: string): { url: URL } | { error: string } {
   return { url };
 }
 
+/** Everything worth knowing about why a page did or didn't yield a recipe. */
+function describePage(
+  html: string,
+  url: string,
+  mapper: { findRecipeNode: (html: string) => Record<string, unknown> | null },
+) {
+  const blocks = [
+    ...html.matchAll(
+      /<script[^>]+type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+    ),
+  ];
+
+  const jsonLd = blocks.map(([, body], i) => {
+    try {
+      const parsed: unknown = JSON.parse(body.trim());
+      const types = new Set<string>();
+      const walk = (value: unknown, depth = 0) => {
+        if (depth > 6 || !value || typeof value !== "object") return;
+        if (Array.isArray(value)) return value.forEach((v) => walk(v, depth + 1));
+        const node = value as Record<string, unknown>;
+        for (const t of [node["@type"]].flat()) if (t) types.add(String(t));
+        for (const key of ["@graph", "mainEntity", "mainEntityOfPage", "itemListElement", "hasPart"]) {
+          walk(node[key], depth + 1);
+        }
+      };
+      walk(parsed);
+      return { block: i + 1, types: [...types] };
+    } catch (error) {
+      return { block: i + 1, unparseable: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // If the words aren't in the served HTML at all, the page builds itself in
+  // the browser and no amount of parsing here will reach it.
+  const mentions = (pattern: RegExp) => pattern.test(html);
+
+  return {
+    url,
+    title: html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ?? null,
+    htmlBytes: html.length,
+    recipeFound: mapper.findRecipeNode(html) !== null,
+    jsonLdBlocks: jsonLd,
+    microdata: mentions(/itemtype\s*=\s*["']https?:\/\/schema\.org\/Recipe["']/i),
+    rdfa: mentions(/typeof\s*=\s*["'][^"']*Recipe/i),
+    clientRenderedPayload: {
+      next: mentions(/id\s*=\s*["']__NEXT_DATA__["']/i),
+      nuxt: mentions(/window\.__NUXT__/),
+      apollo: mentions(/__APOLLO_STATE__/),
+    },
+    // The tell: server-rendered recipe text is here; a client-rendered page has
+    // the shell and nothing else.
+    looksServerRendered: {
+      saysIngredients: mentions(/ingredients?/i),
+      saysMethodOrInstructions: mentions(/instructions?|method|directions?/i),
+    },
+  };
+}
+
 export default async function handler(req: Req, res: Res) {
   res.setHeader("Cache-Control", "public, max-age=0, s-maxage=3600");
 
@@ -131,6 +189,15 @@ export default async function handler(req: Req, res: Res) {
         ? "The site took too long to respond."
         : "Couldn't reach that page.",
     });
+    return;
+  }
+
+  // ?debug=1 reports what the page actually contains rather than only that it
+  // wasn't readable. "The recipe is right there on the page" and "the recipe is
+  // in the HTML this fetched" are different claims, and the difference decides
+  // whether a parser can ever help.
+  if (req.query.debug !== undefined) {
+    res.status(200).json(describePage(html, checked.url.toString(), mapper));
     return;
   }
 
