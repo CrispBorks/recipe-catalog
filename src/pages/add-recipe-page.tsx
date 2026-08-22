@@ -256,7 +256,7 @@ export function AddRecipePage() {
 
 
   return (
-    <PageShell>
+    <PageShell footer={<SiteFooter />}>
       <div className="pt-9 pb-5">
         <BackLink />
       </div>
@@ -612,8 +612,6 @@ export function AddRecipePage() {
 
         </>
       )}
-
-      <SiteFooter />
     </PageShell>
   );
 }

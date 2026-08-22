@@ -75,7 +75,7 @@ export function RecipePage() {
 
   if (error || !recipe) {
     return (
-      <PageShell width="reading">
+      <PageShell width="reading" footer={<SiteFooter />}>
         <div className="no-print pt-9 pb-5">
           <BackLink />
         </div>
@@ -85,7 +85,6 @@ export function RecipePage() {
             Back to the catalog.
           </Link>
         </p>
-        <SiteFooter />
       </PageShell>
     );
   }
@@ -150,7 +149,7 @@ export function RecipePage() {
   };
 
   return (
-    <PageShell width="reading">
+    <PageShell width="reading" footer={<SiteFooter />}>
       <div className="no-print flex items-center justify-between gap-3 pt-9 pb-5">
         <BackLink />
         <div className="flex items-center gap-1">
@@ -392,8 +391,6 @@ export function RecipePage() {
       )}
 
       <DangerZone recipe={recipe} />
-
-      <SiteFooter />
     </PageShell>
   );
 }

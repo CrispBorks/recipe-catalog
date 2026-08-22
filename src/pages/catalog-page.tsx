@@ -75,7 +75,7 @@ export function CatalogPage() {
   const filtersActive = activeTags.length > 0 || query.trim() !== "";
 
   return (
-    <PageShell>
+    <PageShell footer={<SiteFooter />}>
       <SiteHeader />
 
       {/* Mono is wider than the sans it replaced, so the placeholder is kept
@@ -211,8 +211,6 @@ export function CatalogPage() {
         </Badge>{" "}
         to search from anywhere.
       </p>
-
-      <SiteFooter />
     </PageShell>
   );
 }

@@ -77,7 +77,7 @@ export function ShoppingListPage() {
   };
 
   return (
-    <PageShell width="reading">
+    <PageShell width="reading" footer={<SiteFooter />}>
       <div className="pt-9 pb-5">
         <BackLink />
       </div>
@@ -209,8 +209,6 @@ export function ShoppingListPage() {
         <em>Send to Reminders</em> — it'll add each ingredient as its own entry,
         grouped by recipe in the Reminders app.
       </p>
-
-      <SiteFooter />
     </PageShell>
   );
 }
