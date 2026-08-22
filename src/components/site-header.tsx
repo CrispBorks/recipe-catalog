@@ -14,7 +14,7 @@ export function SiteHeader() {
           the page's actions, so it reads better held apart from them. */}
       <div className="flex items-center justify-between gap-4">
         <Link to="/" className="display text-[28px] leading-none font-semibold">
-          Card Catalog
+          Recipe Catalog
         </Link>
         <ThemeToggle />
       </div>
