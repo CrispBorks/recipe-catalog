@@ -36,7 +36,7 @@ export function ShoppingListPage() {
   const checkedCount = list.filter((item) => item.checked).length;
 
   React.useEffect(() => {
-    document.title = "Shopping list — Card Catalog";
+    document.title = "Shopping list — Recipe Catalog";
   }, []);
 
   /** Every destructive edit is reversible for a few seconds — cheaper than a

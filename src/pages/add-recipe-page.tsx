@@ -95,7 +95,7 @@ export function AddRecipePage() {
   const notes = useFieldArray({ control: form.control, name: "notes" });
 
   React.useEffect(() => {
-    document.title = "Add a recipe — Card Catalog";
+    document.title = "Add a recipe — Recipe Catalog";
   }, []);
 
   // The slug follows the title until the moment someone edits it by hand.
@@ -294,323 +294,323 @@ export function AddRecipePage() {
           )}
         </div>
       ) : (
-      <>
-        <div className="mt-6">
-          <ImportPanel onUse={useParsed} onSave={saveParsed} saving={saving} />
-        </div>
+        <>
+          <div className="mt-6">
+            <ImportPanel onUse={useParsed} onSave={saveParsed} saving={saving} />
+          </div>
 
-      {/* The form is always here, whether you're correcting an import or
+          {/* The form is always here, whether you're correcting an import or
           typing from scratch — there's no mode to switch into. */}
-      <div ref={formRef} className="mt-10 flex items-center gap-3">
-        <h2 className="display shrink-0 text-lg font-semibold">Or fill it in</h2>
-        <span className="h-px flex-1 bg-border" />
-      </div>
-
-      <form onSubmit={handleSubmit(onSave)} className="mt-6 flex flex-col gap-8">
-        <Section title="Recipe details">
-          <div className="grid gap-4 sm:grid-cols-[2fr_1fr_1fr]">
-            <Field label="Title" error={formState.errors.title?.message}>
-              {(id) => (
-                <Input
-                  id={id}
-                  {...register("title", { required: "Give the recipe a title." })}
-                  placeholder="Lemon Garlic Roast Chicken"
-                  aria-invalid={!!formState.errors.title}
-                />
-              )}
-            </Field>
-            <Field label="Time (minutes)" error={formState.errors.time?.message}>
-              {(id) => (
-                <Input
-                  id={id}
-                  {...register("time", {
-                    validate: (v) =>
-                      !v.trim() ||
-                      (Number.isFinite(Number(v)) && Number(v) > 0) ||
-                      "Use a positive number of minutes, or leave it blank.",
-                  })}
-                  inputMode="numeric"
-                  placeholder="45"
-                  aria-invalid={!!formState.errors.time}
-                />
-              )}
-            </Field>
-            <Field label="Servings" error={formState.errors.servings?.message}>
-              {(id) => (
-                <Input
-                  id={id}
-                  {...register("servings", {
-                    validate: (v) =>
-                      !v.trim() ||
-                      (Number.isFinite(Number(v)) && Number(v) > 0) ||
-                      "Use a positive number, or leave it blank.",
-                  })}
-                  inputMode="numeric"
-                  placeholder="4"
-                  aria-invalid={!!formState.errors.servings}
-                />
-              )}
-            </Field>
+          <div ref={formRef} className="mt-10 flex items-center gap-3">
+            <h2 className="display shrink-0 text-lg font-semibold">Or fill it in</h2>
+            <span className="h-px flex-1 bg-border" />
           </div>
 
-          <Field
-            label="ID (slug)"
-            hint="Auto-filled from the title — used in the recipe's URL."
-            error={formState.errors.id?.message}
-          >
-            {(id) => (
-            <Input
-              id={id}
-              {...register("id", {
-                required: "The ID is empty — retype the title or fill it in.",
-                validate: (value) => {
-                  const clash = recipes.find((r) => r.id === value.trim());
-                  return (
-                    !clash ||
-                    `"${value}" is already used by "${clash.title}". Change the title or edit this field.`
-                  );
-                },
-                onChange: () => {
-                  idTouched.current = true;
-                },
-              })}
-              placeholder="lemon-garlic-roast-chicken"
-              className="font-mono"
-              aria-invalid={!!formState.errors.id}
-            />
-            )}
-          </Field>
-
-          <div className="flex flex-col gap-1.5" role="group" aria-label="Tags">
-            <span className="label-mono text-muted-foreground">Tags</span>
-            <div className="flex flex-wrap gap-1.5">
-              {allTags.map((tag) => {
-                const active = tags.includes(tag);
-                return (
-                  <button
-                    key={tag}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => toggleTag(tag)}
-                    className={cn(
-                      "label-mono rounded-full border px-2.5 py-1 transition-colors",
-                      "focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
-                      active
-                        ? "border-foreground bg-primary text-primary-foreground"
-                        : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground",
-                    )}
-                  >
-                    {tag}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-3 flex max-w-xs gap-2">
-              <Input
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addCustomTag();
-                  }
-                }}
-                placeholder="Add a new tag…"
-                aria-label="Add a new tag"
-              />
-              <Button type="button" variant="outline" onClick={addCustomTag}>
-                Add
-              </Button>
-            </div>
-            <span className="text-[12px] text-muted-foreground">
-              Tap to toggle. Add your own below.
-            </span>
-          </div>
-        </Section>
-
-        <Section
-          title="Ingredients"
-          hint='Leave this empty if the recipe is just a link or a note. Leave "qty" blank for things like "salt to taste."'
-        >
-          <div className="flex flex-col gap-2">
-            {ingredients.fields.map((field, index) => (
-              <div key={field.id} className="flex items-start gap-2">
-                <Input
-                  {...register(`ingredients.${index}.qty`)}
-                  placeholder="2"
-                  inputMode="decimal"
-                  className="w-16 shrink-0 font-mono"
-                  aria-label={`Quantity ${index + 1}`}
-                />
-                <Input
-                  {...register(`ingredients.${index}.unit`)}
-                  placeholder="tbsp"
-                  className="w-20 shrink-0 font-mono"
-                  aria-label={`Unit ${index + 1}`}
-                />
-                <Input
-                  {...register(`ingredients.${index}.name`)}
-                  placeholder="olive oil"
-                  aria-label={`Ingredient ${index + 1}`}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label={`Remove ingredient ${index + 1}`}
-                  disabled={ingredients.fields.length <= 1}
-                  onClick={() => ingredients.remove(index)}
-                >
-                  <XIcon />
-                </Button>
+          <form onSubmit={handleSubmit(onSave)} className="mt-6 flex flex-col gap-8">
+            <Section title="Recipe details">
+              <div className="grid gap-4 sm:grid-cols-[2fr_1fr_1fr]">
+                <Field label="Title" error={formState.errors.title?.message}>
+                  {(id) => (
+                    <Input
+                      id={id}
+                      {...register("title", { required: "Give the recipe a title." })}
+                      placeholder="Lemon Garlic Roast Chicken"
+                      aria-invalid={!!formState.errors.title}
+                    />
+                  )}
+                </Field>
+                <Field label="Time (minutes)" error={formState.errors.time?.message}>
+                  {(id) => (
+                    <Input
+                      id={id}
+                      {...register("time", {
+                        validate: (v) =>
+                          !v.trim() ||
+                          (Number.isFinite(Number(v)) && Number(v) > 0) ||
+                          "Use a positive number of minutes, or leave it blank.",
+                      })}
+                      inputMode="numeric"
+                      placeholder="45"
+                      aria-invalid={!!formState.errors.time}
+                    />
+                  )}
+                </Field>
+                <Field label="Servings" error={formState.errors.servings?.message}>
+                  {(id) => (
+                    <Input
+                      id={id}
+                      {...register("servings", {
+                        validate: (v) =>
+                          !v.trim() ||
+                          (Number.isFinite(Number(v)) && Number(v) > 0) ||
+                          "Use a positive number, or leave it blank.",
+                      })}
+                      inputMode="numeric"
+                      placeholder="4"
+                      aria-invalid={!!formState.errors.servings}
+                    />
+                  )}
+                </Field>
               </div>
-            ))}
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3 self-start"
-            onClick={() => ingredients.append({ qty: "", unit: "", name: "" })}
-          >
-            <PlusIcon />
-            Add ingredient
-          </Button>
-        </Section>
 
-        <Section title="Steps" hint="One step per box, in order.">
-          <div className="flex flex-col gap-2">
-            {steps.fields.map((field, index) => (
-              <div key={field.id} className="flex items-start gap-2">
-                <span className="meta-mono mt-2.5 grid size-5 shrink-0 place-items-center rounded-full border border-border text-muted-foreground">
-                  {index + 1}
+              <Field
+                label="ID (slug)"
+                hint="Auto-filled from the title — used in the recipe's URL."
+                error={formState.errors.id?.message}
+              >
+                {(id) => (
+                  <Input
+                    id={id}
+                    {...register("id", {
+                      required: "The ID is empty — retype the title or fill it in.",
+                      validate: (value) => {
+                        const clash = recipes.find((r) => r.id === value.trim());
+                        return (
+                          !clash ||
+                          `"${value}" is already used by "${clash.title}". Change the title or edit this field.`
+                        );
+                      },
+                      onChange: () => {
+                        idTouched.current = true;
+                      },
+                    })}
+                    placeholder="lemon-garlic-roast-chicken"
+                    className="font-mono"
+                    aria-invalid={!!formState.errors.id}
+                  />
+                )}
+              </Field>
+
+              <div className="flex flex-col gap-1.5" role="group" aria-label="Tags">
+                <span className="label-mono text-muted-foreground">Tags</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {allTags.map((tag) => {
+                    const active = tags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => toggleTag(tag)}
+                        className={cn(
+                          "label-mono rounded-full border px-2.5 py-1 transition-colors",
+                          "focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+                          active
+                            ? "border-foreground bg-primary text-primary-foreground"
+                            : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+                        )}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 flex max-w-xs gap-2">
+                  <Input
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addCustomTag();
+                      }
+                    }}
+                    placeholder="Add a new tag…"
+                    aria-label="Add a new tag"
+                  />
+                  <Button type="button" variant="outline" onClick={addCustomTag}>
+                    Add
+                  </Button>
+                </div>
+                <span className="text-[12px] text-muted-foreground">
+                  Tap to toggle. Add your own below.
                 </span>
-                <Textarea
-                  {...register(`steps.${index}.text`)}
-                  placeholder="Heat oven to 425°F…"
-                  rows={2}
-                  aria-label={`Step ${index + 1}`}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label={`Remove step ${index + 1}`}
-                  disabled={steps.fields.length <= 1}
-                  onClick={() => steps.remove(index)}
-                >
-                  <XIcon />
-                </Button>
               </div>
-            ))}
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3 self-start"
-            onClick={() => steps.append({ text: "" })}
-          >
-            <PlusIcon />
-            Add step
-          </Button>
-        </Section>
+            </Section>
 
-        <Section
-          title="Notes"
-          hint="YouTube links get embedded automatically. Tips, substitutions, or where the recipe came from all go here."
-        >
-          <div className="flex flex-col gap-2">
-            {notes.fields.map((field, index) => (
-              <div key={field.id} className="flex items-start gap-2">
-                <Textarea
-                  {...register(`notes.${index}.text`)}
-                  placeholder="https://youtu.be/… or a tip, substitution, source, etc."
-                  rows={2}
-                  aria-label={`Note ${index + 1}`}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label={`Remove note ${index + 1}`}
-                  onClick={() => notes.remove(index)}
-                >
-                  <XIcon />
-                </Button>
+            <Section
+              title="Ingredients"
+              hint='Leave this empty if the recipe is just a link or a note. Leave "qty" blank for things like "salt to taste."'
+            >
+              <div className="flex flex-col gap-2">
+                {ingredients.fields.map((field, index) => (
+                  <div key={field.id} className="flex items-start gap-2">
+                    <Input
+                      {...register(`ingredients.${index}.qty`)}
+                      placeholder="2"
+                      inputMode="decimal"
+                      className="w-16 shrink-0 font-mono"
+                      aria-label={`Quantity ${index + 1}`}
+                    />
+                    <Input
+                      {...register(`ingredients.${index}.unit`)}
+                      placeholder="tbsp"
+                      className="w-20 shrink-0 font-mono"
+                      aria-label={`Unit ${index + 1}`}
+                    />
+                    <Input
+                      {...register(`ingredients.${index}.name`)}
+                      placeholder="olive oil"
+                      aria-label={`Ingredient ${index + 1}`}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      aria-label={`Remove ingredient ${index + 1}`}
+                      disabled={ingredients.fields.length <= 1}
+                      onClick={() => ingredients.remove(index)}
+                    >
+                      <XIcon />
+                    </Button>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3 self-start"
-            onClick={() => notes.append({ text: "" })}
-          >
-            <PlusIcon />
-            Add note
-          </Button>
-        </Section>
-
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={saving}>
-            {saving ? <Loader2Icon className="animate-spin" /> : <BookmarkIcon />}
-            {saving ? "Saving…" : "Save to catalog"}
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button type="button" variant="outline">
-                Clear form
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 self-start"
+                onClick={() => ingredients.append({ qty: "", unit: "", name: "" })}
+              >
+                <PlusIcon />
+                Add ingredient
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Clear everything in this form?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Anything you've typed will be lost. Recipes already saved to
-                  the catalog are unaffected.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep editing</AlertDialogCancel>
-                <AlertDialogAction onClick={resetAll}>Clear it</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+            </Section>
 
-        {needsKey && (
-          <CatalogKeyPrompt
-            value={catalogKey}
-            onChange={setCatalogKey}
-            busy={saving}
-            onSubmit={() => void submitKey()}
-          />
-        )}
-      </form>
+            <Section title="Steps" hint="One step per box, in order.">
+              <div className="flex flex-col gap-2">
+                {steps.fields.map((field, index) => (
+                  <div key={field.id} className="flex items-start gap-2">
+                    <span className="meta-mono mt-2.5 grid size-5 shrink-0 place-items-center rounded-full border border-border text-muted-foreground">
+                      {index + 1}
+                    </span>
+                    <Textarea
+                      {...register(`steps.${index}.text`)}
+                      placeholder="Heat oven to 425°F…"
+                      rows={2}
+                      aria-label={`Step ${index + 1}`}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      aria-label={`Remove step ${index + 1}`}
+                      disabled={steps.fields.length <= 1}
+                      onClick={() => steps.remove(index)}
+                    >
+                      <XIcon />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 self-start"
+                onClick={() => steps.append({ text: "" })}
+              >
+                <PlusIcon />
+                Add step
+              </Button>
+            </Section>
 
-      {saved && (
-        <div className="mt-8 rounded-lg border border-status/40 bg-status/5 p-5">
-          <h2 className="display text-xl font-semibold">Saved to the catalog</h2>
-          <p className="mt-2 text-[14px] text-muted-foreground">
-            "{saved.title}" is in the drawer now.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button asChild>
-              <Link to={`/recipe/${saved.id}`}>Open the recipe</Link>
-            </Button>
-            <Button variant="outline" onClick={() => { resetAll(); setSaved(null); }}>
-              Add another
-            </Button>
-          </div>
-        </div>
-      )}
+            <Section
+              title="Notes"
+              hint="YouTube links get embedded automatically. Tips, substitutions, or where the recipe came from all go here."
+            >
+              <div className="flex flex-col gap-2">
+                {notes.fields.map((field, index) => (
+                  <div key={field.id} className="flex items-start gap-2">
+                    <Textarea
+                      {...register(`notes.${index}.text`)}
+                      placeholder="https://youtu.be/… or a tip, substitution, source, etc."
+                      rows={2}
+                      aria-label={`Note ${index + 1}`}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      aria-label={`Remove note ${index + 1}`}
+                      onClick={() => notes.remove(index)}
+                    >
+                      <XIcon />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 self-start"
+                onClick={() => notes.append({ text: "" })}
+              >
+                <PlusIcon />
+                Add note
+              </Button>
+            </Section>
 
-      </>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={saving}>
+                {saving ? <Loader2Icon className="animate-spin" /> : <BookmarkIcon />}
+                {saving ? "Saving…" : "Save to catalog"}
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button type="button" variant="outline">
+                    Clear form
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Clear everything in this form?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Anything you've typed will be lost. Recipes already saved to
+                      the catalog are unaffected.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep editing</AlertDialogCancel>
+                    <AlertDialogAction onClick={resetAll}>Clear it</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+
+            {needsKey && (
+              <CatalogKeyPrompt
+                value={catalogKey}
+                onChange={setCatalogKey}
+                busy={saving}
+                onSubmit={() => void submitKey()}
+              />
+            )}
+          </form>
+
+          {saved && (
+            <div className="mt-8 rounded-lg border border-status/40 bg-status/5 p-5">
+              <h2 className="display text-xl font-semibold">Saved to the catalog</h2>
+              <p className="mt-2 text-[14px] text-muted-foreground">
+                "{saved.title}" is in the drawer now.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button asChild>
+                  <Link to={`/recipe/${saved.id}`}>Open the recipe</Link>
+                </Button>
+                <Button variant="outline" onClick={() => { resetAll(); setSaved(null); }}>
+                  Add another
+                </Button>
+              </div>
+            </div>
+          )}
+
+        </>
       )}
 
       <SiteFooter />

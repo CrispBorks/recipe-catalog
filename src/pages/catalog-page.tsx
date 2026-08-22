@@ -38,7 +38,7 @@ export function CatalogPage() {
   const [sort, setSort] = React.useState<Sort>("catalog");
 
   React.useEffect(() => {
-    document.title = "Card Catalog";
+    document.title = "Recipe Catalog";
   }, []);
 
   const allTags = React.useMemo(() => {

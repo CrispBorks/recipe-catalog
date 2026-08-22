@@ -68,7 +68,7 @@ export function RecipePage() {
   }, [recipe]);
 
   React.useEffect(() => {
-    document.title = recipe ? `${recipe.title} — Card Catalog` : "Card Catalog";
+    document.title = recipe ? `${recipe.title} — Recipe Catalog` : "Recipe Catalog";
   }, [recipe]);
 
   if (loading) return <RecipeSkeleton />;
