@@ -50,7 +50,7 @@ export function SiteFooter() {
       With ❤️ from{" "}
       <a
         className="underline underline-offset-2 hover:text-foreground"
-        href="https://atharva-bhagwat.github.io/"
+        href="https://atharvabhagwat.dev/"
         target="_blank"
         rel="noopener noreferrer"
       >
